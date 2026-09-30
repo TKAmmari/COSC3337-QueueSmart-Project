@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in - QueueSmart</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="auth">
+  <section class="auth-side">
+    <a class="brand" href="login.html"><span class="brand-mark" aria-hidden="true">Q</span><span>QueueSmart<small>University Academic Advising</small></span></a>
+    <div>
+      <h2>Wait for your advisor from anywhere on campus.</h2>
+      <p>Join the walk-in queue, watch your place in line, and get a notification when it is almost your turn.</p>
+    </div>
+    <p class="small">Advising Center walk-in hours: Monday to Friday, 9:00 AM to 4:30 PM</p>
+  </section>
+  <section class="auth-main">
+    <div class="auth-card">
+      <h1>Sign in</h1>
+      <p>Use your university email and QueueSmart password.</p>
+      <div class="alert alert-error" id="login-error" role="alert" hidden></div>
+      <div class="alert alert-success" id="login-info" role="status" hidden></div>
+      <form id="login-form">
+        <div class="field">
+          <label for="email">University email<span class="req" aria-hidden="true">*</span></label>
+          <input class="input" id="email" name="email" type="email" autocomplete="username" maxlength="100" required placeholder="name@uh.edu">
+        </div>
+        <div class="field">
+          <label for="password">Password<span class="req" aria-hidden="true">*</span></label>
+          <input class="input" id="password" name="password" type="password" autocomplete="current-password" maxlength="64" required>
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">Sign in</button>
+      </form>
+      <p class="auth-foot">New to QueueSmart? <a href="register.html">Create an account</a></p>
+      <div class="demo">
+        <p><strong>Demo accounts (mock data)</strong></p>
+        <p>Student: student@uh.edu / Student123!</p>
+        <p>Advisor: advisor@uh.edu / Advisor123!</p>
+        <p><button class="link" type="button" id="reset-demo">Reset demo data</button></p>
+      </div>
+    </div>
+  </section>
+</div>
+<script src="js/store.js"></script>
+<script src="js/validate.js"></script>
+<script src="js/app.js"></script>
+<script src="js/pages/login.js"></script>
+</body>
+</html>
