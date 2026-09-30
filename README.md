@@ -1,6 +1,7 @@
 # QueueSmart – Front End (Assignment 2)
 
 Smart queue management for University Academic Advising. 
+
 - **Students** join a walk-in queue, track their position and estimated wait, get
   notifications, and view their advising history.
 - **Advisors / administrators** manage services, open or close queues, reorder or
