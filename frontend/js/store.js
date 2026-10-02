@@ -137,12 +137,12 @@ window.QS = window.QS || {};
       queue(id).forEach(en => notify(en.userId, `${svc.name} is now ${open ? 'open' : 'closed to new students'}. Your spot is kept.`, 'info'));
       persist();
     },
+
     // ----- appointments -----
+    // Returns appointments for a specific user, or all appointments if userId is omitted (for advisors)
     getAppointments(userId) {
-      return appointments()
-        .filter(a => a.userId === userId)
-        .slice()
-        .sort((a, b) => a.startAt - b.startAt);
+      const list = userId ? appointments().filter(a => a.userId === userId) : appointments();
+      return list.slice().sort((a, b) => a.startAt - b.startAt);
     },
 
     bookAppointment(userId, serviceId, date, time) {
@@ -168,6 +168,30 @@ window.QS = window.QS || {};
 
       return appointment;
     },
+
+    // Updates an appointment and dispatches an in-app notification
+    updateAppointment(id, { date, time, serviceId }) {
+      const apt = appointments().find(a => a.id === id);
+      if (!apt) return null;
+      if (serviceId) apt.serviceId = serviceId;
+      if (date && time) apt.startAt = new Date(`${date}T${time}`).getTime();
+      const svc = service(apt.serviceId);
+      notify(apt.userId, `Your ${svc.name} appointment was updated to ${date} at ${time}.`, 'info');
+      persist();
+      return apt;
+    },
+
+    // Cancels an appointment, updates status to 'canceled', and sends notification
+    cancelAppointment(id) {
+      const apt = appointments().find(a => a.id === id);
+      if (!apt) return null;
+      apt.status = 'canceled';
+      const svc = service(apt.serviceId);
+      notify(apt.userId, `Your ${svc.name} appointment has been canceled.`, 'status');
+      persist();
+      return apt;
+    },
+
     // ----- queues -----
     getQueue(id) { return queue(id).slice(); },
     estimateWait(sid, position) {
