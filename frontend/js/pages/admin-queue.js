@@ -8,11 +8,21 @@
   let sid = QS.fmt.param('service');
   if (!QS.store.getService(sid)) sid = services[0].id;
   let lastServed = null;
+  let search = '';
+  let priorityFilter = 'all';
   const up = '<svg class="ic" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
   const down = '<svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg>';
 
   function render() {
+    const focusedSearch = main.querySelector('#queue-search');
+    const restoreFocus = focusedSearch && document.activeElement === focusedSearch;
+    const selection = restoreFocus ? focusedSearch.selectionStart : null;
     const svc = QS.store.getService(sid), q = QS.store.getQueue(sid);
+    const visible = q.map((en, i) => ({ en, i })).filter(({ en }) => {
+      const email = QS.store.getUser(en.userId)?.email || '';
+      return (priorityFilter === 'all' || en.priority === priorityFilter) &&
+        `${en.name} ${email}`.toLowerCase().includes(search.trim().toLowerCase());
+    });
     main.innerHTML = `
       <div class="toolbar">
         <div class="field"><label for="svc">Service</label>
@@ -27,9 +37,17 @@
       </div>
       <section class="panel">
         <div class="panel-head"><h2>${esc(svc.name)} queue</h2><span class="small muted">${q.length} waiting, ${svc.duration} min sessions, a new student would wait ${mins(QS.store.estimateWait(sid, QS.store.projectedPosition(sid)))}</span></div>
-        ${q.length ? `<div class="table-wrap"><table>
+        <div class="toolbar" style="margin-bottom:16px">
+          <div class="field"><label for="queue-search">Search students</label>
+            <input class="input" id="queue-search" type="search" maxlength="100" placeholder="Name or email" value="${esc(search)}"></div>
+          <div class="field"><label for="queue-priority">Filter by priority</label>
+            <select class="input" id="queue-priority">${['all', 'high', 'medium', 'low'].map(p => `<option value="${p}" ${p === priorityFilter ? 'selected' : ''}>${p === 'all' ? 'All priorities' : p[0].toUpperCase() + p.slice(1)}</option>`).join('')}</select></div>
+          <button class="btn btn-ghost" type="button" data-clear-filters>Clear filters</button>
+        </div>
+        <p class="small muted" role="status" aria-live="polite">Showing ${visible.length} of ${q.length} students. Filters only change the display; Serve next uses the full queue.</p>
+        ${visible.length ? `<div class="table-wrap"><table>
           <thead><tr><th scope="col">#</th><th scope="col">Student</th><th scope="col">Priority</th><th scope="col">Waiting</th><th scope="col">Est. wait</th><th scope="col"><span class="sr">Actions</span></th></tr></thead>
-          <tbody>${q.map((en, i) => `<tr class="${i === 0 ? 'is-first' : ''}">
+          <tbody>${visible.map(({ en, i }) => `<tr class="${i === 0 ? 'is-first' : ''}">
             <td><span class="qpos">${i + 1}</span></td>
             <td><strong>${esc(en.name)}</strong>${en.note ? `<span class="sub">“${esc(en.note)}”</span>` : ''}</td>
             <td><label class="sr" for="p-${en.id}">Priority for ${esc(en.name)}</label>
@@ -43,9 +61,17 @@
               <button class="btn btn-danger btn-sm" type="button" data-remove="${en.id}">Remove</button></div></td>
           </tr>`).join('')}</tbody></table></div>
           <p class="note" style="margin-top:14px">Students are ordered by priority, then arrival time. Changing a priority re-sorts the queue; the arrows let you override the order by hand.</p>`
-        : '<div class="empty"><h2>No students in this queue</h2><p>When students join, they appear here in order.</p></div>'}
+        : q.length ? '<div class="empty"><h2>No students match these filters</h2><p>Try another name or email, select all priorities, or clear the filters.</p></div>' : '<div class="empty"><h2>No students in this queue</h2><p>When students join, they appear here in order.</p></div>'}
       </section>`;
 
+    main.querySelector('#queue-search').addEventListener('input', e => { search = e.target.value; render(); });
+    main.querySelector('#queue-priority').addEventListener('change', e => { priorityFilter = e.target.value; render(); main.querySelector('#queue-priority').focus(); });
+    main.querySelector('[data-clear-filters]').addEventListener('click', () => { search = ''; priorityFilter = 'all'; render(); main.querySelector('#queue-search').focus(); });
+    if (restoreFocus) {
+      const input = main.querySelector('#queue-search');
+      input.focus();
+      if (selection !== null) input.setSelectionRange(selection, selection);
+    }
     main.querySelector('#svc').addEventListener('change', e => { sid = e.target.value; lastServed = null; history.replaceState(null, '', `admin-queue.html?service=${sid}`); render(); });
     main.querySelector('[data-toggle]').addEventListener('click', () => {
       const willOpen = !svc.open; // read before the store flips it
