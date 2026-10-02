@@ -35,6 +35,8 @@ window.QS = window.QS || {};
         s4: [e('e41', 'Luis Romero', 'high', 14), e('e42', 'Chloe Martin', 'high', 6)],
         s5: []
       },
+      appointments: [],
+
       history: [
         { id: 'h1', userId: 'u1', service: 'Registration Help', date: daysAgo(3, 10, 5), wait: 12, outcome: 'completed' },
         { id: 'h2', userId: 'u1', service: 'Registration Hold Resolution', date: daysAgo(9, 13, 40), wait: 21, outcome: 'completed' },
@@ -72,6 +74,9 @@ window.QS = window.QS || {};
   // ---------- helpers ----------
   function service(id) { return s().services.find(x => x.id === id); }
   function queue(id) { return s().queues[id] || (s().queues[id] = []); }
+  function appointments() {
+    return s().appointments || (s().appointments = []);
+  } 
   function notify(userId, text, type) {
     if (!userId) return;
     s().notifications.unshift({ id: uid('n'), userId, type: type || 'queue', text, time: Date.now(), read: false });
@@ -132,7 +137,37 @@ window.QS = window.QS || {};
       queue(id).forEach(en => notify(en.userId, `${svc.name} is now ${open ? 'open' : 'closed to new students'}. Your spot is kept.`, 'info'));
       persist();
     },
+    // ----- appointments -----
+    getAppointments(userId) {
+      return appointments()
+        .filter(a => a.userId === userId)
+        .slice()
+        .sort((a, b) => a.startAt - b.startAt);
+    },
 
+    bookAppointment(userId, serviceId, date, time) {
+      const svc = service(serviceId);
+
+      const appointment = {
+        id: uid('a'),
+        userId: userId,
+        serviceId: serviceId,
+        startAt: new Date(`${date}T${time}`).getTime(),
+        status: 'scheduled'
+      };
+
+      appointments().push(appointment);
+
+      notify(
+        userId,
+        `Your ${svc.name} appointment has been scheduled for ${date} at ${time}.`,
+        'info'
+      );
+
+      persist();
+
+      return appointment;
+    },
     // ----- queues -----
     getQueue(id) { return queue(id).slice(); },
     estimateWait(sid, position) {

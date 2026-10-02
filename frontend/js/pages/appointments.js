@@ -62,9 +62,47 @@
 
       </form>
     </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Upcoming Appointments</h2>
+      </div>
+
+      <div id="appointmentList">
+        <p class="muted">No upcoming appointments.</p>
+      </div>
+    </div>
   `;
 
   const form = document.getElementById('appointmentForm');
+
+  function renderAppointments() {
+  const list = document.getElementById('appointmentList');
+  const appointments = QS.store.getAppointments(user.id);
+
+  if (appointments.length === 0) {
+    list.innerHTML = `<p class="muted">No upcoming appointments.</p>`;
+    return;
+  }
+
+  list.innerHTML = appointments.map(appointment => {
+    const service = QS.store.getService(appointment.serviceId);
+    const date = new Date(appointment.startAt);
+
+    return `
+      <div class="card">
+        <h3>${service.name}</h3>
+        <p>${date.toLocaleDateString()} at ${date.toLocaleTimeString([], {
+          hour: 'numeric',
+          minute: '2-digit'
+        })}</p>
+        <p class="muted">Status: ${appointment.status}</p>
+      </div>
+    `;
+  }).join('');
+}
+
+renderAppointments();
 
   QS.validate.attach(form, {
     serviceId: [
@@ -81,9 +119,17 @@
     ]
   }, data => {
 
-    console.log('Appointment:', data);
+    form.reset();
 
-    QS.toast('Appointment information is valid.');
-  });
+  QS.store.bookAppointment(
+    user.id,
+    data.serviceId,
+    data.date,
+    data.time
+  );
 
+  QS.toast('Appointment booked successfully.');
+
+  form.reset();
+});
 })();
