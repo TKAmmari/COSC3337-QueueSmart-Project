@@ -34,13 +34,43 @@
         <div class="form-grid">
           <div class="field">
             <label for="password">Password<span class="req" aria-hidden="true">*</span></label>
-            <input class="input" id="password" name="password" type="password" autocomplete="new-password" maxlength="64" required>
+            <!-- PASSWORD VISIBILITY  -->
+            <div style="position: relative; display: flex; align-items: center;">
+              <input class="input" id="password" name="password" type="password" autocomplete="new-password" maxlength="64" required style="padding-right: 42px;">
+              <button type="button" class="btn-toggle-pwd" data-target="password" aria-label="Toggle password visibility" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; color: var(--muted); padding: 4px; display: grid; place-items: center;">
+                <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            
           </div>
           <div class="field">
             <label for="confirm">Confirm password<span class="req" aria-hidden="true">*</span></label>
-            <input class="input" id="confirm" name="confirm" type="password" autocomplete="new-password" maxlength="64" required>
+            
+            <div style="position: relative; display: flex; align-items: center;">
+              <input class="input" id="confirm" name="confirm" type="password" autocomplete="new-password" maxlength="64" required style="padding-right: 42px;">
+              <button type="button" class="btn-toggle-pwd" data-target="confirm" aria-label="Toggle password visibility" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; color: var(--muted); padding: 4px; display: grid; place-items: center;">
+                <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            
           </div>
         </div>
+
+        <!-- PASSWORD STRENGTH METER  -->
+        <div id="pwd-strength-container" style="margin-top: -6px; margin-bottom: 14px; display: none;">
+          <div style="display: flex; gap: 4px; height: 5px; margin-bottom: 6px;">
+            <div id="str-bar-1" style="flex: 1; border-radius: 3px; background: #e2e8f0; transition: background 0.2s;"></div>
+            <div id="str-bar-2" style="flex: 1; border-radius: 3px; background: #e2e8f0; transition: background 0.2s;"></div>
+            <div id="str-bar-3" style="flex: 1; border-radius: 3px; background: #e2e8f0; transition: background 0.2s;"></div>
+            <div id="str-bar-4" style="flex: 1; border-radius: 3px; background: #e2e8f0; transition: background 0.2s;"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 12px;">
+            <span id="pwd-strength-text" style="font-weight: 600;"></span>
+            <span id="pwd-strength-hint" class="muted"></span>
+          </div>
+        </div>
+        
+
         <p class="hint small muted" style="margin:-8px 0 14px">At least 8 characters with an uppercase letter, a lowercase letter, and a number.</p>
         <fieldset class="field">
           <legend>I am a<span class="req" aria-hidden="true">*</span></legend>

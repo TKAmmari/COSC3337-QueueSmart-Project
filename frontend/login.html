@@ -27,10 +27,19 @@
           <label for="email">University email<span class="req" aria-hidden="true">*</span></label>
           <input class="input" id="email" name="email" type="email" autocomplete="username" maxlength="100" required placeholder="name@uh.edu">
         </div>
+
         <div class="field">
           <label for="password">Password<span class="req" aria-hidden="true">*</span></label>
-          <input class="input" id="password" name="password" type="password" autocomplete="current-password" maxlength="64" required>
+          <!-- Password Visibility toggle -->
+          <div style="position: relative; display: flex; align-items: center;">
+            <input class="input" id="password" name="password" type="password" autocomplete="current-password" maxlength="64" required style="padding-right: 42px;">
+            <button type="button" class="btn-toggle-pwd" data-target="password" aria-label="Toggle password visibility" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; color: var(--muted); padding: 4px; display: grid; place-items: center;">
+              <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          
         </div>
+
         <button class="btn btn-primary btn-block" type="submit">Sign in</button>
       </form>
       <p class="auth-foot">New to QueueSmart? <a href="register.html">Create an account</a></p>
