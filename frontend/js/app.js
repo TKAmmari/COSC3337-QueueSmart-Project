@@ -42,6 +42,7 @@ window.QS = window.QS || {};
   const I = {
     home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
     join: '<path d="M12 5v14M5 12h14"/>',
+    calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',
     status: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
     history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
     services: '<path d="M4 6h16M4 12h16M4 18h10"/>',
@@ -53,7 +54,7 @@ window.QS = window.QS || {};
   QS.icon = icon;
 
   const NAV = {
-    student: [['dashboard.html', 'Dashboard', 'home'], ['join.html', 'Join a queue', 'join'], ['status.html', 'Queue status', 'status'], ['history.html', 'History', 'history']],
+    student: [['dashboard.html', 'Dashboard', 'home'], ['join.html', 'Join a queue', 'join'], ['appointments.html', 'Appointments', 'calendar'], ['status.html', 'Queue status', 'status'], ['history.html', 'History', 'history']],
     admin: [['admin-dashboard.html', 'Dashboard', 'home'], ['services.html', 'Services', 'services'], ['admin-queue.html', 'Queue management', 'queue']]
   };
 

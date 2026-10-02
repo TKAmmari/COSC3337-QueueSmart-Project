@@ -30,6 +30,7 @@ window.QS = window.QS || {};
     },
     oneOf: (list, label) => v => (list.indexOf(v) > -1 ? '' : `Choose a ${label}.`),
     notFuture: label => v => (!v || new Date(v + 'T00:00') <= today() ? '' : `${label} can't be in the future.`),
+    notPast: label => v => (!v || new Date(v + 'T00:00') >= today() ? '' : `${label} can't be in the past.`),
     notBefore: (other, label) => (v, form) => {
       const o = form.elements[other].value;
       return !v || !o || v >= o ? '' : `${label} must be on or after the start date.`;
