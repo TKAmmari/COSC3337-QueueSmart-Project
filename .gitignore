@@ -2,3 +2,6 @@
 Thumbs.db
 .vscode/
 node_modules/
+# backend coverage output
+lcov.info
+coverage/

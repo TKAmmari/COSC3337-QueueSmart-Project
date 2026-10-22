@@ -1,4 +1,4 @@
-# QueueSmart – Front End (Assignment 2)
+# QueueSmart (Assignments 2 and 3)
 
 Smart queue management for University Academic Advising. 
 
@@ -7,15 +7,34 @@ Smart queue management for University Academic Advising.
 - **Advisors / administrators** manage services, open or close queues, reorder or
   remove students, change priorities, and serve the next student.
 
-There is no backend yet. All data is mocked and kept in the browser's `localStorage`.
+As of Assignment 3 the front end (`frontend/`) gets all of its data from the
+back-end REST API (`backend/`). The back end keeps data in memory; since there is no
+database yet.
 
 ## Running it
 
-No install or build step is needed.
+You need **Node.js 18 or newer** (check with `node -v`).
 
-1. Clone the repo.
-2. Open `login.html` in a browser (double-click it), **or** serve the folder:
-   `python3 -m http.server 8000` and visit http://localhost:8000.
+```bash
+cd backend
+npm install
+npm start
+```
+
+Then open **http://localhost:3000**. The server runs the API and the front end together.
+Data is kept in memory, so restarting the server resets it.
+
+Run the tests from the `backend` folder:
+
+```bash
+npm test                # all Jest tests
+npm run test:coverage   # tests + coverage report
+```
+
+On Windows PowerShell, if `npm` is blocked by "running scripts is disabled", use `npm.cmd`
+instead (e.g. `npm.cmd test`) or run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once.
+
+See [`backend/README.md`](backend/README.md) for how the back end is organized and the list of API routes.
 
 Demo accounts (mock data):
 
@@ -28,8 +47,8 @@ You can also register a new account (email must end in `@uh.edu` or `@cougarnet.
 "Reset demo data" on the sign-in page restores the original mock data.
 
 **Tip for demos:** sign in as the student in one tab and as the advisor in a second tab.
-When the advisor clicks *Serve next student*, the student's tab updates live and shows
-notifications. (Sessions are per tab; data is shared.)
+When the advisor clicks *Serve next student*, the student's tab updates within about two
+seconds and shows notifications. (Sessions are per tab; data lives on the server.)
 
 ## Screens
 
@@ -49,12 +68,13 @@ notifications. (Sessions are per tab; data is shared.)
 ## Project structure
 
 ```
-css/styles.css      Shared design system (colors, type, components, responsive rules)
-js/store.js         Mock data + all queue rules (the only file that touches data)
-js/validate.js      Reusable client-side validation (required, length, email, number, date)
-js/app.js           Session + role guard, navigation shell, notifications, toasts, dialogs
-js/pages/*.js       One script per screen
-*.html              One page per screen
+backend/                  Express REST API, in-memory data, Jest tests (see backend/README.md)
+frontend/css/styles.css   Shared design system (colors, type, components, responsive rules)
+frontend/js/store.js      API client: every screen gets its data through QS.store -> /api/*
+frontend/js/validate.js   Reusable client-side validation (required, length, email, number, date)
+frontend/js/app.js        Session + role guard, navigation shell, notifications, toasts, dialogs
+frontend/js/pages/*.js    One script per screen
+frontend/*.html           One page per screen
 ```
 
 ## Rules carried over from Assignment 1
@@ -72,15 +92,20 @@ js/pages/*.js       One script per screen
 
 ## Validation
 
-Handled by `js/validate.js`: required fields, length limits with live character counters
+Front end: `frontend/js/validate.js`. Back end: `backend/src/utils/validation.js`, which
+returns `400` with one message per invalid field. Front-end rules: required fields, length limits with live character counters
 (service name max 100), email format and university domain, password strength and
 confirmation, whole-number range for expected duration (1–240 minutes), and date inputs
 on History (no future dates, end date not before start date).
 
-## Moving to Assignment 3
+## Assignment 3: how the front end talks to the back end
 
-Screens never touch `localStorage` directly; they call `QS.store.*`. In A3 each of those
-functions becomes a `fetch()` call to the API, and the screens stay the same.
+Screens never touched data directly; they call `QS.store.*`. In A3 each of those
+functions became a call to the REST API, so the screens stayed almost the same. The
+client caches GET results until something changes, and checks `/api/version` every
+three seconds so other tabs stay in sync.
+The back end validates everything again (required fields, types, length limits), so
+the front-end checks are for convenience only.
 
 ## Git workflow
 
