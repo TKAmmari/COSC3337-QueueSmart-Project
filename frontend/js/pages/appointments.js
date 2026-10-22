@@ -190,7 +190,12 @@
       return;
     }
 
-    QS.store.updateAppointment(currentModifyingId, { date: newDate, time: newTime });
+    try {
+      QS.store.updateAppointment(currentModifyingId, { date: newDate, time: newTime });
+    } catch (e) {
+      alert(e.message); // e.g. date in the past or a time already booked
+      return;
+    }
     modal.close();
     renderAppointments(); // Instant visual update
   });
@@ -207,8 +212,14 @@
     date: [QS.validate.rules.required('Appointment date'), QS.validate.rules.notPast('Appointment date')],
     time: [QS.validate.rules.required('Appointment time')]
   }, data => {
+    try {
+      QS.store.bookAppointment(user.id, data.serviceId, data.date, data.time);
+    } catch (e) {
+      QS.ui.toast(e.message, 'error');
+      return;
+    }
     form.reset();
-    QS.store.bookAppointment(user.id, data.serviceId, data.date, data.time);
+    QS.ui.toast('Appointment booked.', 'success');
     renderAppointments();
   });
 

@@ -2,7 +2,6 @@
  * notification bell/panel, toasts, confirm dialog, and small formatters. */
 window.QS = window.QS || {};
 (function (QS) {
-  const SESSION = 'queuesmart.session';
 
   // ---------- formatting ----------
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -20,15 +19,11 @@ window.QS = window.QS || {};
   const param = k => new URLSearchParams(location.search).get(k);
   QS.fmt = { esc, ago, mins, date, time, priority, param };
 
-  // ---------- session ----------
+  // ---------- session (token-based; the token is kept by QS.store) ----------
   QS.auth = {
-    current() {
-      let id = null;
-      try { id = sessionStorage.getItem(SESSION); } catch (err) { /* ignore */ }
-      return id ? QS.store.getUser(id) : null;
-    },
-    login(user) { try { sessionStorage.setItem(SESSION, user.id); } catch (err) { /* ignore */ } },
-    logout() { try { sessionStorage.removeItem(SESSION); } catch (err) { /* ignore */ } location.href = 'login.html'; },
+    current() { return QS.store.currentUser(); },
+    login(email, password) { return QS.store.login(email, password); },
+    logout() { QS.store.logout(); location.href = 'login.html'; },
     home(user) { return user.role === 'admin' ? 'admin-dashboard.html' : 'dashboard.html'; },
     require(role) {
       const user = this.current();

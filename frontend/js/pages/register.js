@@ -11,12 +11,22 @@
     confirm: [R.required('Confirm password'), R.matches('password', 'Confirm password')],
     role: [R.oneOf(['student', 'admin'], 'role')]
   }, data => {
-    if (QS.store.findUserByEmail(data.email)) {
-      v.showError('email', 'An account with this email already exists. Sign in instead.');
-      form.elements.email.focus();
+    try {
+      QS.store.register(data); // POST /api/auth/register (the server validates again)
+    } catch (e) {
+      if (e.status === 409) {
+        v.showError('email', e.message);
+        form.elements.email.focus();
+      } else if (e.details && e.details.length) {
+        e.details.forEach(d => v.showError(d.field, d.message));
+        const first = form.elements[e.details[0].field];
+        if (first && first.focus) first.focus();
+      } else {
+        err.hidden = false;
+        err.textContent = e.message;
+      }
       return;
     }
-    QS.store.createUser(data);
     location.href = 'login.html?registered=1';
   });
   err.hidden = true;

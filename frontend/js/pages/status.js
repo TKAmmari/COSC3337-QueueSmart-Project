@@ -38,17 +38,12 @@
               <div class="panel-head"><h2>About your estimate</h2></div>
               <p class="small muted">This is an estimate, not a guaranteed time. It updates whenever someone joins or leaves, a session ends, or an advisor changes priorities. We'll notify you when you're almost ready.</p>
               <div class="btn-row" style="margin-top:16px"><button class="btn btn-danger" type="button" data-leave>Leave queue</button></div>
-              <details class="demo-tools"><summary>Demo controls (no backend yet)</summary>
-                <p style="margin-top:8px">Simulates the advisor calling the next student so you can watch your status change.</p>
-                <div class="btn-row"><button class="btn btn-ghost btn-sm" type="button" data-sim>Advisor serves next student</button></div>
-              </details>
             </section>
           </div>
         </div>`;
       main.querySelector('[data-leave]').addEventListener('click', async () => {
         if (await QS.ui.confirm({ title: 'Leave this queue?', body: 'You will lose your place in line. You can join again later, but you will start at the back.', action: 'Leave queue', danger: true })) QS.store.leaveQueue(user.id);
       });
-      main.querySelector('[data-sim]').addEventListener('click', () => QS.store.serveNext(found.serviceId));
       return;
     }
 

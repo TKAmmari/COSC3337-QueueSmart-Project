@@ -52,7 +52,15 @@
     duration: [R.required('Expected duration'), R.integer(1, 240, 'Expected duration')],
     priority: [R.oneOf(['low', 'medium', 'high'], 'priority level')]
   }, data => {
-    const saved = QS.store.saveService({ id: editing || undefined, name: data.name.trim(), description: data.description.trim(), duration: Number(data.duration), priority: data.priority });
+    let saved;
+    try {
+      saved = QS.store.saveService({ id: editing || undefined, name: data.name.trim(), description: data.description.trim(), duration: Number(data.duration), priority: data.priority });
+    } catch (e) {
+      // Server-side validation errors appear under the matching field.
+      if (e.details && e.details.length) e.details.forEach(d => validator.showError(d.field, d.message));
+      else QS.ui.toast(e.message, 'error');
+      return;
+    }
     QS.ui.toast(editing ? `Saved changes to ${saved.name}.` : `Created ${saved.name}. Its queue is open.`, 'success');
     load(saved.id);
   });

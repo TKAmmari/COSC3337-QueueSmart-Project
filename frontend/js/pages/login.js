@@ -17,22 +17,28 @@
     email: [R.required('Email'), R.email(), R.maxLen(100, 'Email')],
     password: [R.required('Password')]
   }, data => {
-    const user = QS.store.findUserByEmail(data.email);
-    if (!user || user.password !== data.password) {
+    let user;
+    try {
+      user = QS.auth.login(data.email, data.password); // POST /api/auth/login
+    } catch (e) {
       err.hidden = false;
-      err.textContent = 'That email and password don’t match an account. Check both and try again.';
+      err.textContent = e.message; // 401 message from the server, or "can't reach the server"
       form.elements.password.value = '';
       form.elements.password.focus();
       return;
     }
-    QS.auth.login(user);
     location.href = QS.auth.home(user);
   });
 
   document.getElementById('reset-demo').addEventListener('click', () => {
-    QS.store.reset();
-    info.hidden = false; err.hidden = true;
-    info.textContent = 'Demo data was reset to the original mock data.';
+    try {
+      QS.store.reset(); // POST /api/demo/reset
+      info.hidden = false; err.hidden = true;
+      info.textContent = 'Demo data on the server was reset to the original mock data.';
+    } catch (e) {
+      err.hidden = false; info.hidden = true;
+      err.textContent = e.message;
+    }
   });
 
    
