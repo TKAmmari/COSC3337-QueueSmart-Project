@@ -1,5 +1,6 @@
 const { data, resetData } = require('../src/data/store');
 const services = require('../src/modules/services');
+const { estimateWait } = require('../src/modules/waitTime');
 
 const newService = { name: 'Transfer Credit Review', description: 'Check how transfer courses count.', duration: 20, priority: 'medium' };
 
@@ -53,5 +54,35 @@ describe('service management', () => {
 
   test('open must be true or false', () => {
     expect(() => services.setServiceOpen('s2', { open: 'no' })).toThrow('true or false');
+  });
+});
+
+describe('advisors on duty', () => {
+  const jordanMessages = () => data.notifications.filter((n) => n.userId === 'u1').map((n) => n.text);
+
+  test('changes the advisor count and the wait estimate', () => {
+    // Jordan is #3 in Degree Audit Review (15 min sessions): 2 ahead x 15 min / 1 advisor = 30 min
+    const service = services.setAdvisors('s2', { advisors: 2 });
+    expect(service.advisors).toBe(2);
+    expect(estimateWait(service, 3)).toBe(15);
+  });
+
+  test('tells students in line their new estimated wait', () => {
+    services.setAdvisors('s2', { advisors: 2 });
+    expect(jordanMessages()[0]).toBe('Degree Audit Review now has 2 advisors on duty. Your estimated wait is now about 15 min.');
+  });
+
+  test('no change, no notifications', () => {
+    const count = data.notifications.length;
+    services.setAdvisors('s2', { advisors: 1 });
+    expect(data.notifications).toHaveLength(count);
+  });
+
+  test('checks the number', () => {
+    expect(() => services.setAdvisors('s2', {})).toThrow('Advisors on duty is required.');
+    expect(() => services.setAdvisors('s2', { advisors: 0 })).toThrow('at least 1');
+    expect(() => services.setAdvisors('s2', { advisors: 11 })).toThrow('at most 10');
+    expect(() => services.setAdvisors('s2', { advisors: 1.5 })).toThrow('whole number');
+    expect(() => services.setAdvisors('nope', { advisors: 2 })).toThrow('Service not found.');
   });
 });

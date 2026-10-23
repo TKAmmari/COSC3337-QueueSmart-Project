@@ -13,6 +13,7 @@ const { notify, notifyPositionChanges, ALMOST_READY } = require('./notifications
 const { addHistory } = require('./history');
 
 const RANK = { high: 0, medium: 1, low: 2 };
+const AGING_INTERVAL_MS = MINUTE; // how often the server checks for long waits
 
 function getQueue(serviceId) {
   getService(serviceId); // throws 404 if the service doesn't exist
@@ -29,6 +30,16 @@ function insertPosition(queue, priority) {
   let i = queue.length;
   while (i > 0 && RANK[queue[i - 1].priority] > RANK[priority]) i -= 1;
   return i;
+}
+
+// Moves one entry to where its priority and join time put it, without re-sorting
+// everyone else, so an advisor's manual moves (moveEntry) are kept.
+function reposition(queue, entry) {
+  queue.splice(queue.indexOf(entry), 1);
+  let i = 0;
+  while (i < queue.length && (RANK[queue[i].priority] < RANK[entry.priority]
+    || (queue[i].priority === entry.priority && queue[i].joinedAt <= entry.joinedAt))) i += 1;
+  queue.splice(i, 0, entry);
 }
 
 function updatePositions(serviceId) {
@@ -170,39 +181,63 @@ function moveEntry(serviceId, entryId, body = {}) {
 function setPriority(serviceId, entryId, body = {}) {
   validate(body, { priority: { label: 'Priority', required: true, type: 'string', oneOf: PRIORITIES } });
   const queue = getQueue(serviceId);
-  queue[findIndex(queue, entryId)].priority = body.priority;
-  sortQueue(queue);
+  const entry = queue[findIndex(queue, entryId)];
+  entry.priority = body.priority;
+  reposition(queue, entry);
   updatePositions(serviceId);
   return queue;
 }
 
 // Starvation prevention (from A1): increases priority for students waiting beyond threshold.
+// Returns the queue (for the advisor's manual /age-check route).
 function applyPriorityAging(serviceId) {
+  ageQueue(serviceId);
+  return getQueue(serviceId);
+}
+
+// Ages one queue. Returns how many students moved up a priority level.
+function ageQueue(serviceId) {
   const service = getService(serviceId);
   const queue = getQueue(serviceId);
   const now = Date.now();
-  let reordered = false;
+  const aged = [];
 
   queue.forEach((entry) => {
     const elapsedMinutes = (now - entry.joinedAt) / MINUTE;
     if (elapsedMinutes >= service.duration * 2.5 && entry.priority !== 'high') {
       entry.priority = 'high';
       entry.aged = true;
-      reordered = true;
+      aged.push(entry);
       notify(entry.userId, `Your priority in ${service.name} was increased to High due to your wait time.`, 'info');
     } else if (entry.priority === 'low' && elapsedMinutes >= service.duration * 1.5) {
       entry.priority = 'medium';
       entry.aged = true;
-      reordered = true;
+      aged.push(entry);
       notify(entry.userId, `Your priority in ${service.name} was increased to Medium due to your wait time.`, 'info');
     }
   });
 
-  if (reordered) {
-    sortQueue(queue);
+  if (aged.length > 0) {
+    aged.forEach((entry) => reposition(queue, entry));
     updatePositions(serviceId);
   }
-  return queue;
+  return aged.length;
+}
+
+// Ages every queue, including closed services (students there keep their spot).
+// Bumps the data version when anything changed, so open browser tabs refresh.
+function ageAllQueues() {
+  const aged = data.services.reduce((sum, service) => sum + ageQueue(service.id), 0);
+  if (aged > 0) data.version += 1;
+  return aged;
+}
+
+// Runs ageAllQueues on a timer so aging happens without anyone clicking anything.
+// unref() lets the process exit normally (e.g. in tests) even while the timer exists.
+function startPriorityAging(intervalMs = AGING_INTERVAL_MS) {
+  const timer = setInterval(ageAllQueues, intervalMs);
+  timer.unref();
+  return timer;
 }
 
 // "It's your turn" message for a student who was just served (shown for 30 minutes).
@@ -217,6 +252,7 @@ function dismissCalled(userId) {
 }
 
 module.exports = {
-  sortQueue, insertPosition, viewQueue, previewJoin, findEntry, joinQueue, leaveQueue,
-  serveNext, removeEntry, moveEntry, setPriority, applyPriorityAging, getCalled, dismissCalled, getQueue
+  sortQueue, insertPosition, reposition, viewQueue, previewJoin, findEntry, joinQueue, leaveQueue,
+  serveNext, removeEntry, moveEntry, setPriority, applyPriorityAging, ageQueue, ageAllQueues, startPriorityAging,
+  AGING_INTERVAL_MS, getCalled, dismissCalled, getQueue
 };

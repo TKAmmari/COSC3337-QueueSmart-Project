@@ -14,6 +14,21 @@ describe('register', () => {
     expect(data.users).toHaveLength(3);
   });
 
+  test('stores a hashed password, not the plain text', () => {
+    const user = auth.register(newStudent);
+    const stored = data.users.find((u) => u.id === user.id).password;
+    expect(stored).not.toBe('Secret123');
+    expect(stored).toMatch(/^[0-9a-f]+:[0-9a-f]+$/);
+    expect(auth.login({ email: 'ana@uh.edu', password: 'Secret123' }).user.id).toBe(user.id);
+  });
+
+  test('an advisor account needs the advisor access code', () => {
+    expect(() => auth.register({ ...newStudent, role: 'admin' })).toThrow('advisor access code');
+    expect(() => auth.register({ ...newStudent, role: 'admin', advisorCode: 'guess' })).toThrow('advisor access code');
+    const user = auth.register({ ...newStudent, role: 'admin', advisorCode: auth.ADVISOR_CODE });
+    expect(user.role).toBe('admin');
+  });
+
   test('saves the email in lowercase and defaults the role to student', () => {
     const user = auth.register({ ...newStudent, email: 'Ana@UH.edu', role: undefined });
     expect(user.email).toBe('ana@uh.edu');
@@ -83,5 +98,13 @@ describe('login and logout', () => {
     const { token } = auth.login({ email: 'student@uh.edu', password: 'Student123!' });
     auth.logout(token);
     expect(auth.getUserByToken(token)).toBeUndefined();
+  });
+
+  test('sessions expire', () => {
+    const { token } = auth.login({ email: 'student@uh.edu', password: 'Student123!' });
+    expect(auth.getUserByToken(token).id).toBe('u1');
+    data.sessions[token].expiresAt = Date.now() - 1;
+    expect(auth.getUserByToken(token)).toBeUndefined();
+    expect(data.sessions[token]).toBeUndefined();
   });
 });

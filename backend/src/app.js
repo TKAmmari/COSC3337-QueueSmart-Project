@@ -12,10 +12,15 @@ const { notificationsRouter, historyRouter, appointmentsRouter, statsRouter } = 
 const app = express();
 app.use(express.json());
 
-// Any change to the data bumps the version number. The front end checks
-// /api/version every few seconds and refreshes when it changes.
+// Any successful change to the data bumps the version number. The front end checks
+// /api/version every few seconds and refreshes when it changes. Failed requests
+// (400, 401, 409, ...) don't change anything, so they don't bump it.
 app.use('/api', (req, res, next) => {
-  if (req.method !== 'GET') data.version += 1;
+  if (req.method !== 'GET') {
+    res.on('finish', () => {
+      if (res.statusCode < 400) data.version += 1;
+    });
+  }
   next();
 });
 
@@ -32,8 +37,12 @@ app.get('/api/version', (req, res) => {
   res.json({ version: data.version });
 });
 
-// "Reset demo data" button on the login page.
+// "Reset demo data" button on the login page. Turned off in production
+// (NODE_ENV=production) so nobody can wipe real data.
 app.post('/api/demo/reset', (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    throw new ApiError(403, 'Resetting demo data is turned off on this server.');
+  }
   resetData();
   res.json({ reset: true });
 });

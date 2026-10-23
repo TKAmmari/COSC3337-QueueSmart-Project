@@ -127,6 +127,7 @@ window.QS = window.QS || {};
         : change('POST', '/services', body).service;
     },
     setServiceOpen(id, open) { return withToast(() => change('PATCH', `/services/${id}/status`, { open })); },
+    setAdvisors(id, advisors) { return withToast(() => change('PATCH', `/services/${id}/advisors`, { advisors }).service); },
 
     // ----- appointments (students get their own, advisors get everyone's) -----
     getAppointments() { return get('/appointments').appointments; },

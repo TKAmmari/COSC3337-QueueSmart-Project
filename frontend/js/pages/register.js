@@ -9,8 +9,10 @@
     email: [R.required('Email'), R.email(), R.universityEmail(), R.maxLen(100, 'Email')],
     password: [R.required('Password'), R.password()],
     confirm: [R.required('Confirm password'), R.matches('password', 'Confirm password')],
-    role: [R.oneOf(['student', 'admin'], 'role')]
+    role: [R.oneOf(['student', 'admin'], 'role')],
+    advisorCode: [(v, f) => (f.elements.role.value === 'admin' && !v.trim() ? 'Advisor access code is required.' : '')]
   }, data => {
+    if (data.role !== 'admin') delete data.advisorCode;
     try {
       QS.store.register(data); // POST /api/auth/register (the server validates again)
     } catch (e) {
@@ -31,7 +33,13 @@
   });
   err.hidden = true;
 
-  
+  // Only advisors need the access code.
+  const codeField = document.getElementById('advisor-code-field');
+  form.querySelectorAll('input[name="role"]').forEach(r => r.addEventListener('change', () => {
+    codeField.hidden = form.elements.role.value !== 'admin';
+  }));
+
+
   document.querySelectorAll('.btn-toggle-pwd').forEach(btn => {
     btn.addEventListener('click', () => {
       const input = document.getElementById(btn.dataset.target);
