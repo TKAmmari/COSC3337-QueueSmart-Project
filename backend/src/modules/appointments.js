@@ -5,6 +5,8 @@ const ApiError = require('../utils/ApiError');
 const { validate } = require('../utils/validation');
 const { getService } = require('./services');
 const { notify } = require('./notifications');
+const { getUser } = require('./auth');
+const queue = require('./queue');
 
 const appointmentRules = {
   date: { label: 'Appointment date', required: true, type: 'string', pattern: /^\d{4}-\d{2}-\d{2}$/, patternMessage: 'Appointment date must look like 2026-10-23.' },
@@ -69,4 +71,15 @@ function cancelAppointment(user, id) {
   return appointment;
 }
 
-module.exports = { listAppointments, bookAppointment, updateAppointment, cancelAppointment };
+function checkInAppointment(user, id) {
+  const appointment = findAppointment(user, id);
+  if (appointment.status === 'canceled') throw new ApiError(409, 'Cannot check in for a canceled appointment.');
+  if (appointment.status === 'checked-in') throw new ApiError(409, 'Already checked in for this appointment.');
+  const studentUser = user.role === 'admin' ? getUser(appointment.userId) : user;
+  appointment.status = 'checked-in';
+  const queueEntry = queue.joinQueue(studentUser, appointment.serviceId, { note: `Appointment Check-In (${appointment.id})` });
+  notify(appointment.userId, `Checked in for your appointment. You have been added to the queue at position #${queueEntry.position}.`, 'status');
+  return { appointment, queueEntry };
+}
+
+module.exports = { listAppointments, bookAppointment, updateAppointment, cancelAppointment, checkInAppointment };

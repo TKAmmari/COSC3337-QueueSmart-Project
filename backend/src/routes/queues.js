@@ -62,4 +62,8 @@ router.patch('/:serviceId/entries/:entryId/priority', requireRole('admin'), (req
   res.json({ entries: queue.setPriority(req.params.serviceId, req.params.entryId, req.body) });
 });
 
+router.post('/:serviceId/age-check', requireRole('admin'), (req, res) => {
+  res.json({ entries: queue.applyPriorityAging(req.params.serviceId) });
+});
+
 module.exports = router;

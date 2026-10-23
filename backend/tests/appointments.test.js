@@ -1,5 +1,6 @@
 const { data, resetData } = require('../src/data/store');
 const appointments = require('../src/modules/appointments');
+const queue = require('../src/modules/queue');
 
 const student = { id: 'u1', role: 'student' };
 const advisor = { id: 'u2', role: 'admin' };
@@ -63,5 +64,15 @@ describe('appointments', () => {
     expect(() => appointments.cancelAppointment(otherStudent, a.id)).toThrow('another student');
     expect(appointments.cancelAppointment(advisor, a.id).status).toBe('canceled');
     expect(() => appointments.cancelAppointment(student, 'nope')).toThrow('not found');
+  });
+
+  test('check in appointment transitions status and joins queue', () => {
+    const a = appointments.bookAppointment(student, { serviceId: 's3', date: nextWeek(), time: '11:00' });
+    if (queue.findEntry(student.id)) queue.leaveQueue(student.id);
+
+    const res = appointments.checkInAppointment(student, a.id);
+    expect(res.appointment.status).toBe('checked-in');
+    expect(res.queueEntry.position).toBeGreaterThan(0);
+    expect(() => appointments.checkInAppointment(student, a.id)).toThrow('Already checked in');
   });
 });

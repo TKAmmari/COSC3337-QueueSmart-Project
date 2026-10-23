@@ -20,7 +20,8 @@ notificationsRouter.post('/read-all', (req, res) => {
 
 const historyRouter = express.Router();
 historyRouter.get('/', requireLogin, (req, res) => {
-  res.json({ history: getHistory(req.user.id, req.query.outcome) });
+  const { outcome, from, to, service } = req.query;
+  res.json({ history: getHistory(req.user.id, { outcome, from, to, service }) });
 });
 
 const appointmentsRouter = express.Router();
@@ -36,6 +37,9 @@ appointmentsRouter.put('/:id', (req, res) => {
 });
 appointmentsRouter.post('/:id/cancel', (req, res) => {
   res.json({ appointment: appointments.cancelAppointment(req.user, req.params.id) });
+});
+appointmentsRouter.post('/:id/check-in', (req, res) => {
+  res.json(appointments.checkInAppointment(req.user, req.params.id));
 });
 
 const statsRouter = express.Router();
