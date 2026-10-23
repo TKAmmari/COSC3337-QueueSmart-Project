@@ -2,7 +2,12 @@
 // so everything lives in this object and resets when the server restarts.
 // The starting data matches the mock data from our Assignment 2 front end.
 
+const { hashPassword } = require('../utils/password');
+
 const MINUTE = 60 * 1000;
+
+// Hashed once at startup so resetData() stays fast.
+const SEED_PASSWORDS = { student: hashPassword('Student123!'), advisor: hashPassword('Advisor123!') };
 
 const data = {
   version: 0 // goes up every time data changes, so open browser tabs know to refresh
@@ -17,6 +22,9 @@ function newId(prefix) {
 function resetData() {
   const now = Date.now();
   const minutesAgo = (m) => now - m * MINUTE;
+  const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+  // Like minutesAgo, but never before midnight, so the seed always counts as "today".
+  const earlierToday = (m) => Math.max(startOfToday, minutesAgo(m));
   const daysAgo = (days, hour, minute) => {
     const d = new Date(now);
     d.setDate(d.getDate() - days);
@@ -27,13 +35,13 @@ function resetData() {
   const entry = (id, name, priority, minutes, userId = null) =>
     ({ id, name, priority, joinedAt: minutesAgo(minutes), userId, note: '', lastPos: null });
 
-  // NOTE: passwords are plain text for the in-memory demo. We will hash them in A4.
+  // Passwords are stored hashed (see utils/password.js). Demo logins: Student123! and Advisor123!
   data.users = [
-    { id: 'u1', name: 'Jordan Reyes', email: 'student@uh.edu', password: 'Student123!', role: 'student' },
-    { id: 'u2', name: 'Maria Lopez', email: 'advisor@uh.edu', password: 'Advisor123!', role: 'admin' }
+    { id: 'u1', name: 'Jordan Reyes', email: 'student@uh.edu', password: SEED_PASSWORDS.student, role: 'student' },
+    { id: 'u2', name: 'Maria Lopez', email: 'advisor@uh.edu', password: SEED_PASSWORDS.advisor, role: 'admin' }
   ];
 
-  data.sessions = {}; // token -> userId
+  data.sessions = {}; // token -> { userId, expiresAt }
 
   data.services = [
     { id: 's1', name: 'Registration Help', description: 'Adding, dropping, or swapping classes and fixing registration errors.', duration: 10, priority: 'medium', open: true, advisors: 2 },
@@ -66,9 +74,9 @@ function resetData() {
 
   // Today's finished sessions, used for the advisor statistics.
   data.servedLog = [9, 14, 6, 22, 11, 17, 4, 25, 13, 8, 19].map((wait, i) => ({
-    serviceId: ['s1', 's2', 's4', 's3'][i % 4], wait, at: minutesAgo((i + 1) * 20), outcome: 'completed'
+    serviceId: ['s1', 's2', 's4', 's3'][i % 4], wait, at: earlierToday((i + 1) * 20), outcome: 'completed'
   }));
-  data.servedLog.push({ serviceId: 's1', wait: 0, at: minutesAgo(250), outcome: 'no-show' });
+  data.servedLog.push({ serviceId: 's1', wait: 0, at: earlierToday(250), outcome: 'no-show' });
 
   data.notifications = [
     { id: 'n1', userId: 'u1', type: 'queue', text: 'You joined the Degree Audit Review queue at position 4.', time: minutesAgo(12), read: true },

@@ -80,6 +80,11 @@
           </div>
           <span class="hint">Advisor accounts get the administrator dashboard.</span>
         </fieldset>
+        <div class="field" id="advisor-code-field" hidden>
+          <label for="advisorCode">Advisor access code<span class="req" aria-hidden="true">*</span></label>
+          <input class="input" id="advisorCode" name="advisorCode" type="text" autocomplete="off" maxlength="64">
+          <span class="hint">Ask the advising office for this code.</span>
+        </div>
         <button class="btn btn-primary btn-block" type="submit">Create account</button>
       </form>
       <p class="auth-foot">Already have an account? <a href="login.html">Sign in</a></p>

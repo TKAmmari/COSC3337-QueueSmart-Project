@@ -71,6 +71,13 @@ describe('advisor stats', () => {
     expect(stats.appointmentStats).toHaveProperty('cancelRate');
   });
 
+  test('only counts sessions from today', () => {
+    const yesterday = Date.now() - 24 * 60 * 60 * 1000;
+    data.servedLog.push({ serviceId: 's1', wait: 99, at: yesterday, outcome: 'completed' });
+    data.servedLog.push({ serviceId: 's1', wait: 0, at: yesterday, outcome: 'no-show' });
+    expect(getStats()).toMatchObject({ served: 11, maxWait: 25, noShowRate: 8 });
+  });
+
   test('handles an empty day', () => {
     data.servedLog = [];
     expect(getStats().avgWait).toBe(0);

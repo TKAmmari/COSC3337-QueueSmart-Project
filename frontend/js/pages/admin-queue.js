@@ -29,6 +29,8 @@
           <select class="input" id="svc">${QS.store.getServices().map(s => `<option value="${s.id}" ${s.id === sid ? 'selected' : ''}>${esc(s.name)} (${QS.store.getQueue(s.id).length})</option>`).join('')}</select></div>
         <span class="pill ${svc.open ? 'st-open' : 'st-closed'}" style="margin-bottom:9px">${svc.open ? 'Open' : 'Closed'}</span>
         <button class="btn btn-ghost btn-sm" type="button" data-toggle style="margin-bottom:5px">${svc.open ? 'Close queue' : 'Open queue'}</button>
+        <div class="field"><label for="advisors">Advisors on duty</label>
+          <select class="input" id="advisors">${Array.from({ length: 10 }, (_, k) => k + 1).map(n => `<option value="${n}" ${n === svc.advisors ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
       </div>
       <div class="serving">
         <div><small>${lastServed ? 'Now serving' : 'Next up'}</small>
@@ -77,6 +79,11 @@
       const willOpen = !svc.open; // read before the store flips it
       QS.store.setServiceOpen(sid, willOpen);
       QS.ui.toast(`${svc.name} is now ${willOpen ? 'open' : 'closed'}.`, 'success');
+    });
+    main.querySelector('#advisors').addEventListener('change', e => {
+      const n = Number(e.target.value);
+      if (QS.store.setAdvisors(sid, n)) QS.ui.toast(`${svc.name} now has ${n} advisor${n === 1 ? '' : 's'} on duty. Wait times were updated.`, 'success');
+      main.querySelector('#advisors').focus();
     });
     main.querySelector('[data-serve]').addEventListener('click', () => {
       lastServed = QS.store.serveNext(sid);

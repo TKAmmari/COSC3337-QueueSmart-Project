@@ -23,6 +23,7 @@ src/
   middleware/auth.js   requireLogin (checks the token) and requireRole('admin' | 'student')
   utils/validation.js  validate(body, rules): required, type, length, range, allowed values
   utils/ApiError.js    an error that carries an HTTP status code
+  utils/password.js    hashPassword / verifyPassword (Node's built-in scrypt)
   modules/             the actual logic, one file per module
   routes/              thin Express routers that call the modules
 tests/                 Jest tests, one file per module + api.test.js for the HTTP routes
@@ -41,14 +42,14 @@ tests/                 Jest tests, one file per module + api.test.js for the HTT
 
 | File | What it does |
 |---|---|
-| `modules/auth.js` | Register (with validation), log in (returns a token), log out, look up users. Roles: `student`, `admin`. |
-| `modules/services.js` | Create, edit, list, and open/close services (name, description, duration, priority). |
-| `modules/queue.js` | Join, leave, see your position; advisors serve next, remove, move, change priority. Order is priority, then arrival time. |
+| `modules/auth.js` | Register (with validation), log in (returns a token that expires after 8 hours), log out, look up users. Roles: `student`, `admin`. Passwords are stored hashed. |
+| `modules/services.js` | Create, edit, list, and open/close services (name, description, duration, priority). Set how many advisors are on duty (1–10); students in line are told their new estimated wait. |
+| `modules/queue.js` | Join, leave, see your position; advisors serve next, remove, move, change priority. Order is priority, then arrival time. **Priority aging** runs automatically every minute: low → medium after 1.5× the session length, anything → high after 2.5×. |
 | `modules/waitTime.js` | Estimated wait = people ahead × session length ÷ advisors on duty. |
 | `modules/notifications.js` | Saves notifications: joined, almost ready (#1–#2), moved, served, removed. |
 | `modules/history.js` | Saves each queue visit and its outcome (completed, left queue, canceled, no-show). |
-| `modules/appointments.js` | Book, change, and cancel appointments (from A2). |
-| `modules/stats.js` | Advisor dashboard numbers: waiting, served, average/longest wait, no-show rate. |
+| `modules/appointments.js` | Book, change, cancel, and check in for appointments. Check-in puts the student in that service's queue. |
+| `modules/stats.js` | Advisor dashboard numbers for today: waiting, served, average/longest wait, no-show rate, per-service demand, appointment stats. |
 
 ## API routes
 
@@ -62,6 +63,7 @@ All routes start with `/api`. Signed-in routes need the header `Authorization: B
 | GET | `/services`, `/services/:id` | signed in |
 | POST / PUT | `/services`, `/services/:id` | advisor |
 | PATCH | `/services/:id/status` (`{ open: true/false }`) | advisor |
+| PATCH | `/services/:id/advisors` (`{ advisors: 1–10 }`) | advisor |
 | GET | `/queues/me`, `/queues/:serviceId`, `/queues/:serviceId/projection`, `/queues/:serviceId/estimate?position=3` | signed in |
 | POST | `/queues/:serviceId/join`, `/queues/leave` | student |
 | GET / DELETE | `/queues/me/called` (the "it's your turn" message) | signed in |
@@ -72,12 +74,21 @@ All routes start with `/api`. Signed-in routes need the header `Authorization: B
 | GET · POST | `/notifications` · `/notifications/read-all` | signed in |
 | GET | `/history?outcome=completed` | signed in |
 | GET · POST | `/appointments` (book: student) | signed in |
-| PUT · POST | `/appointments/:id` · `/appointments/:id/cancel` | owner or advisor |
+| PUT · POST | `/appointments/:id` · `/appointments/:id/cancel` · `/appointments/:id/check-in` | owner or advisor |
+| POST | `/queues/:serviceId/age-check` (raise priority for long waits) | advisor |
 | GET | `/stats` | advisor |
-| GET · POST | `/version` · `/demo/reset` | anyone |
+| GET · POST | `/version` · `/demo/reset` (turned off when `NODE_ENV=production`) | anyone |
 
 Errors come back as `{ "error": { "message": "...", "details": [{ "field", "message" }] } }` with status
 400 (invalid input), 401 (not signed in), 403 (wrong role), 404 (not found), or 409 (conflict, like joining two queues).
+
+## Settings
+
+| Environment variable | What it does |
+|---|---|
+| `PORT` | Port to listen on (default 3000) |
+| `ADVISOR_CODE` | Code needed to register an advisor account. Defaults to `ADVISE-UH` for the class demo; set your own on a real server. |
+| `NODE_ENV=production` | Turns off `/api/demo/reset` |
 
 ## Validation rules
 
@@ -86,9 +97,11 @@ Errors come back as `{ "error": { "message": "...", "details": [{ "field", "mess
 | Full name | required, 2–60 characters |
 | Email | required, max 100, must end in `@uh.edu` or `@cougarnet.uh.edu`, not already used |
 | Password | required, 8–64 characters, needs uppercase, lowercase, and a number |
+| Role | `student` (default) or `admin`; `admin` also needs the advisor access code |
 | Service name | required, max 100, unique |
 | Description | required, max 500 |
 | Expected duration | required, whole number 1–240 |
+| Advisors on duty | required, whole number 1–10 |
 | Priority | required: `low`, `medium`, or `high` |
 | Queue note | optional, max 200 |
-| Appointment | service, date (`YYYY-MM-DD`, not in the past), time (`HH:MM`, 9:00–4:30) required; no double booking |
+| Appointment | service, date (`YYYY-MM-DD`, a real date, not in the past), time (`HH:MM`, 9:00–4:30) required; no double booking (also when changing one); only scheduled appointments can be changed, canceled, or checked in; check-in only on the appointment day |

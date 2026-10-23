@@ -25,4 +25,8 @@ router.patch('/:id/status', requireRole('admin'), (req, res) => {
   res.json({ service: services.setServiceOpen(req.params.id, req.body) });
 });
 
+router.patch('/:id/advisors', requireRole('admin'), (req, res) => {
+  res.json({ service: services.setAdvisors(req.params.id, req.body) });
+});
+
 module.exports = router;

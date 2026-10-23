@@ -99,6 +99,22 @@ describe('services routes', () => {
     expect(res.status).toBe(400);
     expect(res.body.error.details[0].field).toBe('duration');
   });
+
+  test('an advisor changes advisors on duty and the estimate follows', async () => {
+    const res = await request(app).patch('/api/services/s2/advisors').set('Authorization', `Bearer ${advisorToken}`).send({ advisors: 3 });
+    expect(res.status).toBe(200);
+    expect(res.body.service.advisors).toBe(3);
+    const est = await request(app).get('/api/queues/s2/estimate?position=4').set('Authorization', `Bearer ${studentToken}`);
+    expect(est.body.estimatedWait).toBe(15); // 3 ahead x 15 min / 3 advisors
+  });
+
+  test('students can’t change advisors on duty; bad numbers return 400', async () => {
+    const asStudent = await request(app).patch('/api/services/s2/advisors').set('Authorization', `Bearer ${studentToken}`).send({ advisors: 3 });
+    expect(asStudent.status).toBe(403);
+    const bad = await request(app).patch('/api/services/s2/advisors').set('Authorization', `Bearer ${advisorToken}`).send({ advisors: '3' });
+    expect(bad.status).toBe(400);
+    expect(bad.body.error.details[0].field).toBe('advisors');
+  });
 });
 
 describe('queue routes', () => {
@@ -189,9 +205,32 @@ describe('other app behavior', () => {
     expect(after).toBeGreaterThan(before);
   });
 
+  test('a failed change doesn’t bump the version', async () => {
+    const before = (await request(app).get('/api/version')).body.version;
+    const res = await request(app).post('/api/auth/login').send({ email: 'student@uh.edu', password: 'nope' });
+    expect(res.status).toBe(401);
+    const after = (await request(app).get('/api/version')).body.version;
+    expect(after).toBe(before);
+  });
+
+  test('registering as an advisor without the code returns 403', async () => {
+    const res = await request(app).post('/api/auth/register')
+      .send({ name: 'Ana Patel', email: 'ana@uh.edu', password: 'Secret123', role: 'admin' });
+    expect(res.status).toBe(403);
+    expect(res.body.error.details[0].field).toBe('advisorCode');
+  });
+
   test('demo reset works', async () => {
     const res = await request(app).post('/api/demo/reset');
     expect(res.body.reset).toBe(true);
+  });
+
+  test('demo reset is turned off in production', async () => {
+    const env = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    const res = await request(app).post('/api/demo/reset');
+    process.env.NODE_ENV = env;
+    expect(res.status).toBe(403);
   });
 
   test('unknown API route returns 404', async () => {

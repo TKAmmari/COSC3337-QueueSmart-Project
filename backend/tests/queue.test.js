@@ -160,6 +160,12 @@ describe('advisors', () => {
     expect(() => queue.setPriority('s2', 'e24', { priority: 'urgent' })).toThrow('Priority must be one of');
   });
 
+  test('changing one student’s priority keeps the advisor’s manual order for everyone else', () => {
+    queue.moveEntry('s1', 'e12', { direction: -1 }); // Sofia ahead of Kevin
+    queue.setPriority('s1', 'e14', { priority: 'high' }); // Grace jumps to the front
+    expect(names('s1')).toEqual(['Grace Okafor', 'Sofia Alvarez', 'Kevin Tran', 'Ethan Brooks']);
+  });
+
   test('priority aging boosts low-priority student waiting beyond expected time', () => {
     const q = queue.getQueue('s1');
     q.push({
@@ -175,5 +181,50 @@ describe('advisors', () => {
     queue.applyPriorityAging('s1');
     const agedEntry = q.find((e) => e.id === 'e_aged');
     expect(agedEntry.priority).toBe('high');
+  });
+});
+
+describe('automatic priority aging', () => {
+  const longWaiter = (minutes) => ({
+    id: 'e_long', name: 'Long Waiter', priority: 'low', joinedAt: Date.now() - minutes * 60 * 1000, userId: 'u1', note: '', lastPos: null
+  });
+
+  test('ages every queue and bumps the data version when something changed', () => {
+    // Seed: Aisha Khan (low) has waited 24 min for a 15 min service, past the 1.5x mark.
+    const before = data.version;
+    expect(queue.ageAllQueues()).toBe(1);
+    expect(data.queues.s2.find((e) => e.name === 'Aisha Khan').priority).toBe('medium');
+    expect(data.version).toBe(before + 1);
+  });
+
+  test('does nothing (and keeps the version) when nobody has waited too long', () => {
+    queue.ageAllQueues();
+    const before = data.version;
+    expect(queue.ageAllQueues()).toBe(0);
+    expect(data.version).toBe(before);
+  });
+
+  test('moves an aged student up and tells them', () => {
+    data.queues.s3.push(longWaiter(70)); // 70 min for a 25 min service: past 2.5x, so High
+    queue.ageAllQueues();
+    expect(names('s3')).toEqual(['Long Waiter', 'Hannah Nguyen']);
+    expect(messagesFor('u1')).toContain('Your priority in Change of Major was increased to High due to your wait time.');
+  });
+
+  test('also ages queues for closed services', () => {
+    data.services.find((s) => s.id === 's3').open = false;
+    data.queues.s3.push(longWaiter(70));
+    queue.ageAllQueues();
+    expect(data.queues.s3.find((e) => e.id === 'e_long').priority).toBe('high');
+  });
+
+  test('runs on a timer', () => {
+    jest.useFakeTimers();
+    const timer = queue.startPriorityAging(1000);
+    expect(data.queues.s2.find((e) => e.name === 'Aisha Khan').priority).toBe('low');
+    jest.advanceTimersByTime(1000);
+    expect(data.queues.s2.find((e) => e.name === 'Aisha Khan').priority).toBe('medium');
+    clearInterval(timer);
+    jest.useRealTimers();
   });
 });

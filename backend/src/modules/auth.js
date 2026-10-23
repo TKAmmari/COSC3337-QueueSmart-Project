@@ -5,6 +5,12 @@ const { data, newId } = require('../data/store');
 const ApiError = require('../utils/ApiError');
 const { validate } = require('../utils/validation');
 const { notify } = require('./notifications');
+const { hashPassword, verifyPassword } = require('../utils/password');
+
+// Creating an advisor account needs this code, so students can't make themselves advisors.
+// Set ADVISOR_CODE on the server; the fallback is only for the class demo.
+const ADVISOR_CODE = process.env.ADVISOR_CODE || 'ADVISE-UH';
+const SESSION_HOURS = 8;
 
 const registerRules = {
   name: { label: 'Full name', required: true, type: 'string', minLength: 2, maxLength: 60 },
@@ -41,6 +47,10 @@ function getUser(id) {
 
 function register(body) {
   validate(body, registerRules);
+  if (body.role === 'admin' && body.advisorCode !== ADVISOR_CODE) {
+    const message = 'Enter a valid advisor access code to create an advisor account.';
+    throw new ApiError(403, message, [{ field: 'advisorCode', message }]);
+  }
   if (findUserByEmail(body.email)) {
     throw new ApiError(409, 'An account with this email already exists. Sign in instead.');
   }
@@ -48,7 +58,7 @@ function register(body) {
     id: newId('u'),
     name: body.name.trim(),
     email: body.email.trim().toLowerCase(),
-    password: body.password,
+    password: hashPassword(body.password),
     role: body.role || 'student'
   };
   data.users.push(user);
@@ -60,11 +70,11 @@ function login(body) {
   validate(body, loginRules);
   const user = findUserByEmail(body.email);
   // Same message either way, so nobody can tell which emails have accounts.
-  if (!user || user.password !== body.password) {
+  if (!user || !verifyPassword(body.password, user.password)) {
     throw new ApiError(401, 'That email and password don’t match an account. Check both and try again.');
   }
   const token = crypto.randomUUID();
-  data.sessions[token] = user.id;
+  data.sessions[token] = { userId: user.id, expiresAt: Date.now() + SESSION_HOURS * 60 * 60 * 1000 };
   return { token, user: publicUser(user) };
 }
 
@@ -72,9 +82,15 @@ function logout(token) {
   delete data.sessions[token];
 }
 
+// Expired sessions are removed the next time someone uses them.
 function getUserByToken(token) {
-  const userId = data.sessions[token];
-  return userId ? getUser(userId) : undefined;
+  const session = data.sessions[token];
+  if (!session) return undefined;
+  if (Date.now() >= session.expiresAt) {
+    delete data.sessions[token];
+    return undefined;
+  }
+  return getUser(session.userId);
 }
 
-module.exports = { publicUser, findUserByEmail, getUser, register, login, logout, getUserByToken };
+module.exports = { ADVISOR_CODE, SESSION_HOURS, publicUser, findUserByEmail, getUser, register, login, logout, getUserByToken };

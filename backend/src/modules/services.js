@@ -3,8 +3,10 @@ const { data, newId } = require('../data/store');
 const ApiError = require('../utils/ApiError');
 const { validate } = require('../utils/validation');
 const { notify } = require('./notifications');
+const { estimateWait } = require('./waitTime');
 
 const PRIORITIES = ['low', 'medium', 'high'];
+const MAX_ADVISORS = 10;
 
 const serviceRules = {
   name: { label: 'Service name', required: true, type: 'string', maxLength: 100 },
@@ -69,4 +71,23 @@ function setServiceOpen(id, body) {
   return service;
 }
 
-module.exports = { PRIORITIES, listServices, getService, createService, updateService, setServiceOpen };
+// How many advisors are helping with this service right now. The wait estimate
+// divides by this, so every student in line is told their new estimated wait.
+function setAdvisors(id, body) {
+  const service = getService(id);
+  validate(body, { advisors: { label: 'Advisors on duty', required: true, type: 'integer', min: 1, max: MAX_ADVISORS } });
+  if (service.advisors === body.advisors) return service;
+
+  const queue = data.queues[id] || [];
+  const oldWaits = queue.map((entry, i) => estimateWait(service, i + 1));
+  service.advisors = body.advisors;
+  queue.forEach((entry, i) => {
+    const wait = estimateWait(service, i + 1);
+    if (wait === oldWaits[i]) return; // e.g. the student at #1 waits 0 either way
+    const who = `${service.advisors} advisor${service.advisors === 1 ? '' : 's'}`;
+    notify(entry.userId, `${service.name} now has ${who} on duty. Your estimated wait is now about ${wait} min.`, 'info');
+  });
+  return service;
+}
+
+module.exports = { PRIORITIES, MAX_ADVISORS, listServices, getService, createService, updateService, setServiceOpen, setAdvisors };
