@@ -159,4 +159,21 @@ describe('advisors', () => {
     expect(messagesFor('u1')[0]).toMatch('time-sensitive case');
     expect(() => queue.setPriority('s2', 'e24', { priority: 'urgent' })).toThrow('Priority must be one of');
   });
+
+  test('priority aging boosts low-priority student waiting beyond expected time', () => {
+    const q = queue.getQueue('s1');
+    q.push({
+      id: 'e_aged',
+      name: 'Patient Student',
+      priority: 'low',
+      joinedAt: Date.now() - 40 * 60 * 1000,
+      userId: 'u1',
+      note: '',
+      lastPos: null
+    });
+
+    queue.applyPriorityAging('s1');
+    const agedEntry = q.find((e) => e.id === 'e_aged');
+    expect(agedEntry.priority).toBe('high');
+  });
 });

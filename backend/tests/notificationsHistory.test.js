@@ -41,6 +41,15 @@ describe('history', () => {
     expect(() => history.getHistory('u1', 'won')).toThrow('Outcome must be one of');
   });
 
+  test('filters history by date range and service', () => {
+    const regOnly = history.getHistory('u1', { service: 'Registration Help' });
+    expect(regOnly.length).toBeGreaterThan(0);
+    expect(regOnly.every(h => h.service === 'Registration Help')).toBe(true);
+
+    const empty = history.getHistory('u1', { from: '2099-01-01' });
+    expect(empty).toHaveLength(0);
+  });
+
   test('addHistory saves the wait time in minutes', () => {
     const record = history.addHistory('u1', 'Change of Major', Date.now() - 10 * 60 * 1000, 'completed');
     expect(record.wait).toBe(10);
@@ -50,7 +59,16 @@ describe('history', () => {
 
 describe('advisor stats', () => {
   test('summarizes today’s numbers', () => {
-    expect(getStats()).toEqual({ waiting: 11, served: 11, avgWait: 13, maxWait: 25, noShowRate: 8 });
+    expect(getStats()).toMatchObject({ waiting: 11, served: 11, avgWait: 13, maxWait: 25, noShowRate: 8 });
+  });
+
+  test('includes service demand breakdown and appointment stats', () => {
+    const stats = getStats();
+    expect(stats.serviceDemand).toBeInstanceOf(Array);
+    expect(stats.serviceDemand).toHaveLength(5);
+    expect(stats.serviceDemand[0]).toHaveProperty('serviceName');
+    expect(stats.appointmentStats).toBeDefined();
+    expect(stats.appointmentStats).toHaveProperty('cancelRate');
   });
 
   test('handles an empty day', () => {

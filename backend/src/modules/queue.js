@@ -176,6 +176,35 @@ function setPriority(serviceId, entryId, body = {}) {
   return queue;
 }
 
+// Starvation prevention (from A1): increases priority for students waiting beyond threshold.
+function applyPriorityAging(serviceId) {
+  const service = getService(serviceId);
+  const queue = getQueue(serviceId);
+  const now = Date.now();
+  let reordered = false;
+
+  queue.forEach((entry) => {
+    const elapsedMinutes = (now - entry.joinedAt) / MINUTE;
+    if (elapsedMinutes >= service.duration * 2.5 && entry.priority !== 'high') {
+      entry.priority = 'high';
+      entry.aged = true;
+      reordered = true;
+      notify(entry.userId, `Your priority in ${service.name} was increased to High due to your wait time.`, 'info');
+    } else if (entry.priority === 'low' && elapsedMinutes >= service.duration * 1.5) {
+      entry.priority = 'medium';
+      entry.aged = true;
+      reordered = true;
+      notify(entry.userId, `Your priority in ${service.name} was increased to Medium due to your wait time.`, 'info');
+    }
+  });
+
+  if (reordered) {
+    sortQueue(queue);
+    updatePositions(serviceId);
+  }
+  return queue;
+}
+
 // "It's your turn" message for a student who was just served (shown for 30 minutes).
 function getCalled(userId) {
   const called = data.called[userId];
@@ -189,5 +218,5 @@ function dismissCalled(userId) {
 
 module.exports = {
   sortQueue, insertPosition, viewQueue, previewJoin, findEntry, joinQueue, leaveQueue,
-  serveNext, removeEntry, moveEntry, setPriority, getCalled, dismissCalled
+  serveNext, removeEntry, moveEntry, setPriority, applyPriorityAging, getCalled, dismissCalled, getQueue
 };
