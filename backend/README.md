@@ -65,6 +65,7 @@ All routes start with `/api`. Signed-in routes need the header `Authorization: B
 | PATCH | `/services/:id/status` (`{ open: true/false }`) | advisor |
 | PATCH | `/services/:id/advisors` (`{ advisors: 1–10 }`) | advisor |
 | GET | `/queues/me`, `/queues/:serviceId`, `/queues/:serviceId/projection`, `/queues/:serviceId/estimate?position=3` | signed in |
+| GET | `/queues/:serviceId/search?q=student&priority=high` | advisor |
 | POST | `/queues/:serviceId/join`, `/queues/leave` | student |
 | GET / DELETE | `/queues/me/called` (the "it's your turn" message) | signed in |
 | POST | `/queues/:serviceId/serve` | advisor |
@@ -81,6 +82,16 @@ All routes start with `/api`. Signed-in routes need the header `Authorization: B
 
 Errors come back as `{ "error": { "message": "...", "details": [{ "field", "message" }] } }` with status
 400 (invalid input), 401 (not signed in), 403 (wrong role), 404 (not found), or 409 (conflict, like joining two queues).
+
+## Server-side advisor queue search
+
+The advisor Queue Management screen calls `GET /api/queues/:serviceId/search`.
+Optional parameters are `q` (case-insensitive name/email search, max 100 characters)
+and `priority` (`all`, `high`, `medium`, or `low`). The endpoint requires
+an advisor token. Its response includes `entries`, `total`, and `matchCount`.
+Each matching entry retains its original 1-based `position`, and searching does
+not reorder the queue or change the student who is served next. Jest and Supertest
+tests cover matches, validation, authorization, and queue-order preservation.
 
 ## Settings
 
