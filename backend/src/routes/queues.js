@@ -31,6 +31,14 @@ router.get('/:serviceId', (req, res) => {
   res.json({ entries: queue.viewQueue(req.params.serviceId, req.user) });
 });
 
+// Search is only available to advisors and does not change queue state.
+router.get('/:serviceId/search', requireRole('admin'), (req, res) => {
+  res.json(queue.searchQueue(req.params.serviceId, {
+    query: req.query.q,
+    priority: req.query.priority
+  }));
+});
+
 router.get('/:serviceId/projection', (req, res) => {
   res.json(queue.previewJoin(req.params.serviceId));
 });
