@@ -64,6 +64,30 @@ function previewJoin(serviceId) {
 }
 
 // The queue this user is in right now, or null.
+// Read-only advisor search: keep each match's actual position in the queue.
+function searchQueue(serviceId, options = {}) {
+  const query = options.query ?? '';
+  const priority = options.priority ?? 'all';
+  validate({ query, priority }, {
+    query: { label: 'Search query', type: 'string', maxLength: 100 },
+    priority: { label: 'Priority filter', type: 'string', oneOf: ['all', ...PRIORITIES] }
+  });
+
+  const entries = getQueue(serviceId);
+  const term = query.trim().toLowerCase();
+  const matches = entries.flatMap((entry, index) => {
+    const email = data.users.find((user) => user.id === entry.userId)?.email || '';
+    if (priority !== 'all' && entry.priority !== priority) return [];
+    if (term && !`${entry.name} ${email}`.toLowerCase().includes(term)) return [];
+    return [{
+      id: entry.id, name: entry.name, priority: entry.priority,
+      joinedAt: entry.joinedAt, userId: entry.userId, note: entry.note,
+      position: index + 1
+    }];
+  });
+  return { entries: matches, total: entries.length, matchCount: matches.length };
+}
+
 function findEntry(userId) {
   for (const serviceId of Object.keys(data.queues)) {
     const queue = data.queues[serviceId];
@@ -252,7 +276,7 @@ function dismissCalled(userId) {
 }
 
 module.exports = {
-  sortQueue, insertPosition, reposition, viewQueue, previewJoin, findEntry, joinQueue, leaveQueue,
+  sortQueue, insertPosition, reposition, viewQueue, searchQueue, previewJoin, findEntry, joinQueue, leaveQueue,
   serveNext, removeEntry, moveEntry, setPriority, applyPriorityAging, ageQueue, ageAllQueues, startPriorityAging,
   AGING_INTERVAL_MS, getCalled, dismissCalled, getQueue
 };
