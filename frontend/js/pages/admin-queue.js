@@ -18,11 +18,9 @@
     const restoreFocus = focusedSearch && document.activeElement === focusedSearch;
     const selection = restoreFocus ? focusedSearch.selectionStart : null;
     const svc = QS.store.getService(sid), q = QS.store.getQueue(sid);
-    const visible = q.map((en, i) => ({ en, i })).filter(({ en }) => {
-      const email = QS.store.getUser(en.userId)?.email || '';
-      return (priorityFilter === 'all' || en.priority === priorityFilter) &&
-        `${en.name} ${email}`.toLowerCase().includes(search.trim().toLowerCase());
-    });
+    // Server filters the entries; i preserves the actual (unfiltered) queue position.
+    const visible = QS.store.searchQueue(sid, search, priorityFilter)
+      .map(en => ({ en, i: en.position - 1 }));
     main.innerHTML = `
       <div class="toolbar">
         <div class="field"><label for="svc">Service</label>

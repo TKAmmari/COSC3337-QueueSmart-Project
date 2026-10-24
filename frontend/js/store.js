@@ -137,6 +137,11 @@ window.QS = window.QS || {};
 
     // ----- queues -----
     getQueue(serviceId) { return get(`/queues/${serviceId}`).entries; },
+    searchQueue(serviceId, query = '', priority = 'all') {
+      const q = encodeURIComponent(query);
+      const filter = encodeURIComponent(priority);
+      return get(`/queues/${serviceId}/search?q=${q}&priority=${filter}`).entries;
+    },
     estimateWait(serviceId, position) { return get(`/queues/${serviceId}/estimate?position=${position}`).estimatedWait; },
     projectedPosition(serviceId) { return get(`/queues/${serviceId}/projection`).position; },
     findEntry() { return get('/queues/me').current; },
