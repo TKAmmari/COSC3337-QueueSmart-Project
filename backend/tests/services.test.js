@@ -1,4 +1,6 @@
-const { data, resetData } = require('../src/data/store');
+const { resetData } = require('../src/data/store');
+const { db, messagesFor, latestNotification, count } = require('./helpers');
+const { getQueue } = require('../src/modules/queue');
 const services = require('../src/modules/services');
 const { estimateWait } = require('../src/modules/waitTime');
 
@@ -20,7 +22,8 @@ describe('service management', () => {
     const service = services.createService(newService);
     expect(service.open).toBe(true);
     expect(service.advisors).toBe(1);
-    expect(data.queues[service.id]).toEqual([]);
+    expect(getQueue(service.id)).toEqual([]);
+    expect(db.prepare('SELECT status FROM queues WHERE service_id = ?').get(service.id).status).toBe('open');
   });
 
   test('requires every field', () => {
@@ -49,7 +52,8 @@ describe('service management', () => {
   test('closing a service tells the students in line', () => {
     services.setServiceOpen('s2', { open: false });
     expect(services.getService('s2').open).toBe(false);
-    expect(data.notifications[0].text).toMatch('closed to new students');
+    expect(latestNotification().text).toMatch('closed to new students');
+    expect(db.prepare('SELECT status FROM queues WHERE service_id = ?').get('s2').status).toBe('closed');
   });
 
   test('open must be true or false', () => {
@@ -58,7 +62,7 @@ describe('service management', () => {
 });
 
 describe('advisors on duty', () => {
-  const jordanMessages = () => data.notifications.filter((n) => n.userId === 'u1').map((n) => n.text);
+  const jordanMessages = () => messagesFor('u1');
 
   test('changes the advisor count and the wait estimate', () => {
     // Jordan is #3 in Degree Audit Review (15 min sessions): 2 ahead x 15 min / 1 advisor = 30 min
@@ -73,9 +77,9 @@ describe('advisors on duty', () => {
   });
 
   test('no change, no notifications', () => {
-    const count = data.notifications.length;
+    const before = count('notifications');
     services.setAdvisors('s2', { advisors: 1 });
-    expect(data.notifications).toHaveLength(count);
+    expect(count('notifications')).toBe(before);
   });
 
   test('checks the number', () => {

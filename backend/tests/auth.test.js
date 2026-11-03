@@ -1,4 +1,5 @@
-const { data, resetData } = require('../src/data/store');
+const { resetData } = require('../src/data/store');
+const { db, count, latestNotification } = require('./helpers');
 const auth = require('../src/modules/auth');
 
 const newStudent = { name: 'Ana Patel', email: 'ana@uh.edu', password: 'Secret123', role: 'student' };
@@ -11,12 +12,13 @@ describe('register', () => {
     expect(user.email).toBe('ana@uh.edu');
     expect(user.role).toBe('student');
     expect(user.password).toBeUndefined();
-    expect(data.users).toHaveLength(3);
+    expect(count('user_credentials')).toBe(3);
+    expect(count('user_profile')).toBe(3);
   });
 
   test('stores a hashed password, not the plain text', () => {
     const user = auth.register(newStudent);
-    const stored = data.users.find((u) => u.id === user.id).password;
+    const stored = db.prepare('SELECT password_hash FROM user_credentials WHERE user_id = ?').get(user.id).password_hash;
     expect(stored).not.toBe('Secret123');
     expect(stored).toMatch(/^[0-9a-f]+:[0-9a-f]+$/);
     expect(auth.login({ email: 'ana@uh.edu', password: 'Secret123' }).user.id).toBe(user.id);
@@ -37,8 +39,8 @@ describe('register', () => {
 
   test('sends a welcome notification', () => {
     const user = auth.register(newStudent);
-    expect(data.notifications[0].userId).toBe(user.id);
-    expect(data.notifications[0].text).toMatch('Welcome');
+    expect(latestNotification().userId).toBe(user.id);
+    expect(latestNotification().text).toMatch('Welcome');
   });
 
   test('rejects an email that is already used', () => {
@@ -103,8 +105,8 @@ describe('login and logout', () => {
   test('sessions expire', () => {
     const { token } = auth.login({ email: 'student@uh.edu', password: 'Student123!' });
     expect(auth.getUserByToken(token).id).toBe('u1');
-    data.sessions[token].expiresAt = Date.now() - 1;
+    db.prepare('UPDATE sessions SET expires_at = ? WHERE token = ?').run(Date.now() - 1, token);
     expect(auth.getUserByToken(token)).toBeUndefined();
-    expect(data.sessions[token]).toBeUndefined();
+    expect(db.prepare('SELECT * FROM sessions WHERE token = ?').get(token)).toBeUndefined();
   });
 });
