@@ -5,3 +5,9 @@ node_modules/
 # backend coverage output
 lcov.info
 coverage/
+
+# SQLite database file (each person gets their own; created by npm start)
+backend/data/
+*.db
+*.db-wal
+*.db-shm
