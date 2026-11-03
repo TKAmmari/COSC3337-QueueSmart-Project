@@ -250,11 +250,12 @@ describe('other app behavior', () => {
   });
 
   test('unexpected errors return 500', async () => {
-    const { data } = require('../src/data/store');
+    const services = require('../src/modules/services');
     const realError = console.error;
     console.error = () => {}; // keep the test output clean
-    data.services = null;
+    const spy = jest.spyOn(services, 'getService').mockImplementation(() => { throw new Error('boom'); });
     const res = await request(app).get('/api/services/s1').set('Authorization', `Bearer ${advisorToken}`);
+    spy.mockRestore();
     console.error = realError;
     expect(res.status).toBe(500);
   });

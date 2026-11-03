@@ -1,4 +1,6 @@
-const { data, resetData } = require('../src/data/store');
+const { resetData } = require('../src/data/store');
+const { latestNotification } = require('./helpers');
+const auth = require('../src/modules/auth');
 const appointments = require('../src/modules/appointments');
 const queue = require('../src/modules/queue');
 
@@ -21,7 +23,7 @@ describe('appointments', () => {
   test('a student books an appointment', () => {
     const a = appointments.bookAppointment(student, { serviceId: 's1', date: nextWeek(), time: '10:00' });
     expect(a.status).toBe('scheduled');
-    expect(data.notifications[0].text).toMatch('appointment has been scheduled');
+    expect(latestNotification().text).toMatch('appointment has been scheduled');
   });
 
   test('checks the fields', () => {
@@ -55,7 +57,8 @@ describe('appointments', () => {
 
   test('students see their own, advisors see all', () => {
     appointments.bookAppointment(student, { serviceId: 's1', date: nextWeek(), time: '10:00' });
-    data.appointments.push({ id: 'a9', userId: 'u9', serviceId: 's1', startAt: 0, status: 'scheduled' });
+    const ana = auth.register({ name: 'Ana Patel', email: 'ana@uh.edu', password: 'Secret123' });
+    appointments.bookAppointment(ana, { serviceId: 's1', date: nextWeek(), time: '10:00' });
     expect(appointments.listAppointments(student)).toHaveLength(1);
     expect(appointments.listAppointments(advisor)).toHaveLength(2);
   });
@@ -64,7 +67,7 @@ describe('appointments', () => {
     const a = appointments.bookAppointment(student, { serviceId: 's1', date: nextWeek(), time: '10:00' });
     const updated = appointments.updateAppointment(student, a.id, { serviceId: 's2', date: nextWeek(), time: '14:00' });
     expect(updated.serviceId).toBe('s2');
-    expect(data.notifications[0].text).toMatch('was updated');
+    expect(latestNotification().text).toMatch('was updated');
   });
 
   test('cancel an appointment, only once', () => {

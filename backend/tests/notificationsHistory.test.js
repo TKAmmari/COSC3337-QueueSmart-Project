@@ -1,4 +1,5 @@
-const { data, resetData } = require('../src/data/store');
+const { resetData, MINUTE } = require('../src/data/store');
+const { db, latestNotification, entryResult, addWaiting } = require('./helpers');
 const notifications = require('../src/modules/notifications');
 const history = require('../src/modules/history');
 const { getStats } = require('../src/modules/stats');
@@ -9,7 +10,7 @@ describe('notifications', () => {
   test('notify adds an unread notification', () => {
     const n = notifications.notify('u1', 'Hello', 'info');
     expect(n.read).toBe(false);
-    expect(data.notifications[0]).toBe(n);
+    expect(latestNotification()).toEqual(n);
   });
 
   test('walk-in students without an account get nothing', () => {
@@ -50,10 +51,20 @@ describe('history', () => {
     expect(empty).toHaveLength(0);
   });
 
-  test('addHistory saves the wait time in minutes', () => {
-    const record = history.addHistory('u1', 'Change of Major', Date.now() - 10 * 60 * 1000, 'completed');
-    expect(record.wait).toBe(10);
-    expect(history.addHistory(null, 'x', Date.now(), 'completed')).toBeNull();
+  test('endEntry turns a waiting entry into history with the wait in minutes', () => {
+    addWaiting('s3', { id: 'e_new', name: 'Jordan Reyes', priority: 'low', joinedAt: Date.now() - 10 * MINUTE, userId: 'u2' });
+    history.endEntry('e_new', 'completed');
+    expect(entryResult('e_new')).toEqual({ status: 'served', outcome: 'completed' });
+    const [record] = history.getHistory('u2');
+    expect(record).toMatchObject({ id: 'e_new', service: 'Change of Major', wait: 10, outcome: 'completed' });
+    expect(() => history.endEntry('e_new', 'won')).toThrow('Outcome must be one of');
+  });
+
+  test('a finished visit keeps no position', () => {
+    history.endEntry('e23', 'left queue');
+    const row = db.prepare('SELECT position, ended_at FROM queue_entries WHERE entry_id = ?').get('e23');
+    expect(row.position).toBeNull();
+    expect(row.ended_at).toBeGreaterThan(0);
   });
 });
 
@@ -64,7 +75,7 @@ describe('advisor stats', () => {
 
   test('includes service demand breakdown and appointment stats', () => {
     const stats = getStats();
-    expect(stats.serviceDemand).toBeInstanceOf(Array);
+    expect(Array.isArray(stats.serviceDemand)).toBe(true);
     expect(stats.serviceDemand).toHaveLength(5);
     expect(stats.serviceDemand[0]).toHaveProperty('serviceName');
     expect(stats.appointmentStats).toBeDefined();
@@ -73,13 +84,16 @@ describe('advisor stats', () => {
 
   test('only counts sessions from today', () => {
     const yesterday = Date.now() - 24 * 60 * 60 * 1000;
-    data.servedLog.push({ serviceId: 's1', wait: 99, at: yesterday, outcome: 'completed' });
-    data.servedLog.push({ serviceId: 's1', wait: 0, at: yesterday, outcome: 'no-show' });
+    const addEnded = (id, status, outcome, wait) => db.prepare(`INSERT INTO queue_entries
+      (entry_id, queue_id, display_name, position, priority, join_time, status, ended_at, outcome)
+      VALUES (?, 'q1', 'Old Visit', NULL, 'medium', ?, ?, ?, ?)`).run(id, yesterday - wait * MINUTE, status, yesterday, outcome);
+    addEnded('y1', 'served', 'completed', 99);
+    addEnded('y2', 'canceled', 'no-show', 0);
     expect(getStats()).toMatchObject({ served: 11, maxWait: 25, noShowRate: 8 });
   });
 
   test('handles an empty day', () => {
-    data.servedLog = [];
+    db.prepare("DELETE FROM queue_entries WHERE status <> 'waiting'").run();
     expect(getStats().avgWait).toBe(0);
     expect(getStats().noShowRate).toBe(0);
   });
