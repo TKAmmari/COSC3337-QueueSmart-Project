@@ -43,14 +43,15 @@ window.QS = window.QS || {};
     services: '<path d="M4 6h16M4 12h16M4 18h10"/>',
     queue: '<circle cx="7" cy="8" r="3"/><circle cx="17" cy="8" r="3"/><path d="M2 20c0-3 2.5-5 5-5s5 2 5 5M12 20c0-3 2.5-5 5-5s5 2 5 5"/>',
     bell: '<path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>',
     out: '<path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H3"/>'
   };
   const icon = n => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
   QS.icon = icon;
 
   const NAV = {
-    student: [['dashboard.html', 'Dashboard', 'home'], ['join.html', 'Join a queue', 'join'], ['appointments.html', 'Appointments', 'calendar'], ['status.html', 'Queue status', 'status'], ['history.html', 'History', 'history']],
-    admin: [['admin-dashboard.html', 'Dashboard', 'home'], ['services.html', 'Services', 'services'], ['admin-queue.html', 'Queue management', 'queue']]
+    student: [['dashboard.html', 'Dashboard', 'home'], ['join.html', 'Join a queue', 'join'], ['appointments.html', 'Appointments', 'calendar'], ['status.html', 'Queue status', 'status'], ['history.html', 'History', 'history'], ['profile.html', 'My profile', 'user']],
+    admin: [['admin-dashboard.html', 'Dashboard', 'home'], ['services.html', 'Services', 'services'], ['admin-queue.html', 'Queue management', 'queue'], ['profile.html', 'My profile', 'user']]
   };
 
   // ---------- shell ----------

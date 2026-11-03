@@ -1,4 +1,4 @@
-/* QueueSmart API client (Assignment 3).
+/* QueueSmart API client (Assignments 3 and 4).
  *
  * In A2 this file held mock data in localStorage. Now every function calls the
  * back-end API instead. The function names stayed the same, so the screens
@@ -112,6 +112,9 @@ window.QS = window.QS || {};
       if (!getToken()) return null;
       try { return get('/auth/me').user; } catch (err) { return null; }
     },
+    // The signed-in user's profile (A4: user_profile table).
+    getProfile() { return get('/users/me/profile').profile; },
+    saveProfile(profile) { return change('PUT', '/users/me/profile', profile).profile; },
     getUser(id) {
       if (!id) return null; // walk-in students have no account
       try { return get(`/users/${id}`).user; } catch (err) { return null; }
