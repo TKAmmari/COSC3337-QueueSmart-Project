@@ -1,4 +1,4 @@
-# QueueSmart (Assignments 2 and 3)
+# QueueSmart (Assignments 2, 3, and 4)
 
 Smart queue management for University Academic Advising. 
 
@@ -7,13 +7,18 @@ Smart queue management for University Academic Advising.
 - **Advisors / administrators** manage services, open or close queues, reorder or
   remove students, change priorities, and serve the next student.
 
-As of Assignment 3 the front end (`frontend/`) gets all of its data from the
-back-end REST API (`backend/`). The back end keeps data in memory; since there is no
-database yet.
+The front end (`frontend/`) gets all of its data from the back-end REST API (`backend/`).
+As of Assignment 4 the back end stores everything in a **SQLite database**, so accounts,
+queues, history, and notifications survive a server restart.
+
+**Nothing extra to install for the database.** It uses `node:sqlite`, the SQLite driver
+built into Node.js, and the database is a single file (`backend/data/queuesmart.db`)
+that's created and filled with demo data the first time you run `npm start`.
 
 ## Running it
 
-You need **Node.js 18 or newer** (check with `node -v`).
+You need **Node.js 22.13 or newer** (check with `node -v`; the current LTS from
+[nodejs.org](https://nodejs.org) works). Older versions don't have the built-in SQLite.
 
 ```bash
 cd backend
@@ -22,7 +27,9 @@ npm start
 ```
 
 Then open **http://localhost:3000**. The server runs the API and the front end together.
-Data is kept in memory, so restarting the server resets it.
+Data is saved in `backend/data/queuesmart.db` and is still there after a restart.
+To start over with the demo data, run `npm run db:reset` (or click "Reset demo data" on
+the sign-in page). The `.db` file is not committed to Git; everyone gets their own copy.
 
 Run the tests from the `backend` folder:
 
@@ -30,6 +37,8 @@ Run the tests from the `backend` folder:
 npm test                # all Jest tests
 npm run test:coverage   # tests + coverage report
 ```
+
+Tests use a separate in-memory database, so they never change your `queuesmart.db`.
 
 On Windows PowerShell, if `npm` is blocked by "running scripts is disabled", use `npm.cmd`
 instead (e.g. `npm.cmd test`) or run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once.
@@ -63,12 +72,14 @@ seconds and shows notifications. (Sessions are per tab; data lives on the server
 | Admin dashboard | `admin-dashboard.html` | `js/pages/admin-dashboard.js` |
 | Service management | `services.html` | `js/pages/services.js` |
 | Queue management | `admin-queue.html` | `js/pages/admin-queue.js` |
+| My profile (A4, students and advisors) | `profile.html` | `js/pages/profile.js` |
 | Notifications (bell, panel, toasts) | every signed-in page | `js/app.js` |
 
 ## Project structure
 
 ```
-backend/                  Express REST API, in-memory data, Jest tests (see backend/README.md)
+backend/                  Express REST API, SQLite database, Jest tests (see backend/README.md)
+backend/src/db/schema.sql The database tables (CREATE TABLE statements)
 frontend/css/styles.css   Shared design system (colors, type, components, responsive rules)
 frontend/js/store.js      API client: every screen gets its data through QS.store -> /api/*
 frontend/js/validate.js   Reusable client-side validation (required, length, email, number, date)
@@ -106,6 +117,22 @@ client caches GET results until something changes, and checks `/api/version` eve
 three seconds so other tabs stay in sync.
 The back end validates everything again (required fields, types, length limits), so
 the front-end checks are for convenience only.
+
+## Assignment 4: the database
+
+| Table | What it holds |
+|---|---|
+| `user_credentials` | user id, email (unique), scrypt password hash, role (student/admin) |
+| `user_profile` | full name, email (foreign key to `user_credentials`), phone, preferences (JSON) |
+| `services` | name (unique), description, expected duration, priority level, advisors on duty |
+| `queues` | one queue per service, status open/closed, created date |
+| `queue_entries` | who is in which queue, position, join time, status waiting/served/canceled |
+| `notifications` | user, message, timestamp, status sent/viewed |
+| `appointments`, `sessions`, `called_alerts` | appointment booking, login tokens, "it's your turn" banner |
+
+A student's history is their `queue_entries` rows that are no longer waiting. The schema
+enforces required fields, length limits, types, allowed values, unique emails and service
+names, and foreign keys. See `backend/README.md` for details.
 
 ## Git workflow
 
