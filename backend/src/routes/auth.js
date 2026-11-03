@@ -24,6 +24,16 @@ router.get('/me', requireLogin, (req, res) => {
 
 // Mounted at /api/users: a student can look up themselves, an advisor anyone.
 const usersRouter = express.Router();
+
+// The signed-in user's profile (user_profile table). Comes before '/:id' so "me" isn't read as an id.
+usersRouter.get('/me/profile', requireLogin, (req, res) => {
+  res.json({ profile: auth.getProfile(req.user.id) });
+});
+
+usersRouter.put('/me/profile', requireLogin, (req, res) => {
+  res.json({ profile: auth.updateProfile(req.user.id, req.body) });
+});
+
 usersRouter.get('/:id', requireLogin, (req, res) => {
   if (req.user.role !== 'admin' && req.user.id !== req.params.id) {
     throw new ApiError(403, 'You can only view your own account.');
