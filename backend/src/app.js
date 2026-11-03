@@ -4,6 +4,7 @@ const path = require('path');
 const express = require('express');
 const ApiError = require('./utils/ApiError');
 const { data, resetData } = require('./data/store');
+const { constraintError } = require('./db/errors');
 const { authRouter, usersRouter } = require('./routes/auth');
 const servicesRouter = require('./routes/services');
 const queuesRouter = require('./routes/queues');
@@ -63,6 +64,10 @@ app.use((err, req, res, next) => {
     if (err.details.length > 0) body.details = err.details;
     return res.status(err.status).json({ error: body });
   }
+  // A database rule (CHECK, UNIQUE, FOREIGN KEY, NOT NULL) stopped a bad write.
+  // The modules validate first, so this is a safety net: still a clear 4xx, never a 500.
+  const dbError = constraintError(err);
+  if (dbError) return res.status(dbError.status).json({ error: { message: dbError.message } });
   if (err.type === 'entity.parse.failed') {
     return res.status(400).json({ error: { message: 'Request body is not valid JSON.' } });
   }
