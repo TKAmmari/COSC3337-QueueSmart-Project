@@ -1,6 +1,6 @@
 const request = require('supertest');
 const app = require('../src/app');
-const { data, resetData } = require('../src/data/store');
+const { resetData } = require('../src/data/store');
 const auth = require('../src/modules/auth');
 const queue = require('../src/modules/queue');
 
@@ -47,9 +47,9 @@ describe('advisor queue search - unit tests', () => {
   });
 
   test('searching does not change queue order or serve-next', () => {
-    const before = data.queues.s2.map(e => e.id);
+    const before = queue.getQueue('s2').map(e => e.id);
     queue.searchQueue('s2', { query: 'Jordan', priority: 'low' });
-    expect(data.queues.s2.map(e => e.id)).toEqual(before);
+    expect(queue.getQueue('s2').map(e => e.id)).toEqual(before);
     expect(queue.serveNext('s2').id).toBe(before[0]);
   });
 

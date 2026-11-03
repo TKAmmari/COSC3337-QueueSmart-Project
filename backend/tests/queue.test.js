@@ -1,12 +1,12 @@
 const { data, resetData } = require('../src/data/store');
+const { db, names, messagesFor, entryResult, addWaiting } = require('./helpers');
 const queue = require('../src/modules/queue');
 const auth = require('../src/modules/auth');
+const services = require('../src/modules/services');
 const { estimateWait } = require('../src/modules/waitTime');
 
 let student; // a new student who is not in any queue yet
 const jordan = () => auth.getUser('u1'); // seeded student, #3 in Degree Audit Review
-const names = (serviceId) => data.queues[serviceId].map((e) => e.name);
-const messagesFor = (userId) => data.notifications.filter((n) => n.userId === userId).map((n) => n.text);
 
 beforeEach(() => {
   resetData();
@@ -87,7 +87,7 @@ describe('students', () => {
   test('leaving removes the student and saves it in history', () => {
     queue.leaveQueue('u1');
     expect(queue.findEntry('u1')).toBeNull();
-    expect(data.history[0].outcome).toBe('left queue');
+    expect(entryResult('e23')).toEqual({ status: 'canceled', outcome: 'left queue' });
     expect(names('s2')).toEqual(['Marcus Lee', 'Aisha Khan', 'Daniel Kim']);
   });
 
@@ -108,7 +108,7 @@ describe('advisors', () => {
     const served = queue.serveNext('s1');
     expect(served.name).toBe('Kevin Tran');
     expect(names('s1')).toHaveLength(3);
-    expect(data.servedLog[0].outcome).toBe('completed');
+    expect(entryResult(served.id)).toEqual({ status: 'served', outcome: 'completed' });
   });
 
   test('serve next on an empty queue returns null', () => {
@@ -123,11 +123,12 @@ describe('advisors', () => {
     queue.serveNext('s2'); // Jordan is served
     expect(messagesFor('u1')[0]).toMatch("It's your turn");
     expect(queue.getCalled('u1').service).toBe('Degree Audit Review');
-    expect(data.history[0].outcome).toBe('completed');
+    expect(entryResult('e23')).toEqual({ status: 'served', outcome: 'completed' });
   });
 
   test('the "your turn" message can be dismissed', () => {
-    data.called.u1 = { service: 'Degree Audit Review', at: Date.now() };
+    db.prepare("INSERT INTO called_alerts VALUES ('u1', 'Degree Audit Review', ?)").run(Date.now());
+    expect(queue.getCalled('u1').service).toBe('Degree Audit Review');
     queue.dismissCalled('u1');
     expect(queue.getCalled('u1')).toBeNull();
   });
@@ -135,13 +136,13 @@ describe('advisors', () => {
   test('remove a student as a no-show', () => {
     const removed = queue.removeEntry('s2', 'e23', { outcome: 'no-show' });
     expect(removed.outcome).toBe('no-show');
-    expect(data.history[0].outcome).toBe('no-show');
+    expect(entryResult('e23')).toEqual({ status: 'canceled', outcome: 'no-show' });
     expect(messagesFor('u1')[0]).toMatch('no-show');
   });
 
   test('remove a student (saved as canceled)', () => {
     queue.removeEntry('s2', 'e23');
-    expect(data.history[0].outcome).toBe('canceled');
+    expect(entryResult('e23')).toEqual({ status: 'canceled', outcome: 'canceled' });
     expect(() => queue.removeEntry('s2', 'e23')).toThrow('not in this queue');
     expect(() => queue.removeEntry('s2', 'e24', { outcome: 'banned' })).toThrow('Outcome must be one of');
   });
@@ -167,33 +168,28 @@ describe('advisors', () => {
   });
 
   test('priority aging boosts low-priority student waiting beyond expected time', () => {
-    const q = queue.getQueue('s1');
-    q.push({
-      id: 'e_aged',
-      name: 'Patient Student',
-      priority: 'low',
-      joinedAt: Date.now() - 40 * 60 * 1000,
-      userId: 'u1',
-      note: '',
-      lastPos: null
-    });
+    addWaiting('s1', { id: 'e_aged', name: 'Patient Student', priority: 'low', joinedAt: Date.now() - 40 * 60 * 1000 });
 
-    queue.applyPriorityAging('s1');
-    const agedEntry = q.find((e) => e.id === 'e_aged');
+    const agedEntry = queue.applyPriorityAging('s1').find((e) => e.id === 'e_aged');
     expect(agedEntry.priority).toBe('high');
+    expect(agedEntry.aged).toBe(true);
   });
 });
 
 describe('automatic priority aging', () => {
   const longWaiter = (minutes) => ({
-    id: 'e_long', name: 'Long Waiter', priority: 'low', joinedAt: Date.now() - minutes * 60 * 1000, userId: 'u1', note: '', lastPos: null
+    id: 'e_long', name: 'Long Waiter', priority: 'low', joinedAt: Date.now() - minutes * 60 * 1000, userId: 'u1'
   });
+  const priorityOf = (serviceId, name) => queue.getQueue(serviceId).find((e) => e.name === name).priority;
+
+  // Jordan (u1) is already waiting in s2, so take him out before giving him a made-up spot elsewhere.
+  beforeEach(() => queue.leaveQueue('u1'));
 
   test('ages every queue and bumps the data version when something changed', () => {
     // Seed: Aisha Khan (low) has waited 24 min for a 15 min service, past the 1.5x mark.
     const before = data.version;
     expect(queue.ageAllQueues()).toBe(1);
-    expect(data.queues.s2.find((e) => e.name === 'Aisha Khan').priority).toBe('medium');
+    expect(priorityOf('s2', 'Aisha Khan')).toBe('medium');
     expect(data.version).toBe(before + 1);
   });
 
@@ -205,25 +201,25 @@ describe('automatic priority aging', () => {
   });
 
   test('moves an aged student up and tells them', () => {
-    data.queues.s3.push(longWaiter(70)); // 70 min for a 25 min service: past 2.5x, so High
+    addWaiting('s3', longWaiter(70)); // 70 min for a 25 min service: past 2.5x, so High
     queue.ageAllQueues();
     expect(names('s3')).toEqual(['Long Waiter', 'Hannah Nguyen']);
     expect(messagesFor('u1')).toContain('Your priority in Change of Major was increased to High due to your wait time.');
   });
 
   test('also ages queues for closed services', () => {
-    data.services.find((s) => s.id === 's3').open = false;
-    data.queues.s3.push(longWaiter(70));
+    services.setServiceOpen('s3', { open: false });
+    addWaiting('s3', longWaiter(70));
     queue.ageAllQueues();
-    expect(data.queues.s3.find((e) => e.id === 'e_long').priority).toBe('high');
+    expect(priorityOf('s3', 'Long Waiter')).toBe('high');
   });
 
   test('runs on a timer', () => {
     jest.useFakeTimers();
     const timer = queue.startPriorityAging(1000);
-    expect(data.queues.s2.find((e) => e.name === 'Aisha Khan').priority).toBe('low');
+    expect(priorityOf('s2', 'Aisha Khan')).toBe('low');
     jest.advanceTimersByTime(1000);
-    expect(data.queues.s2.find((e) => e.name === 'Aisha Khan').priority).toBe('medium');
+    expect(priorityOf('s2', 'Aisha Khan')).toBe('medium');
     clearInterval(timer);
     jest.useRealTimers();
   });
