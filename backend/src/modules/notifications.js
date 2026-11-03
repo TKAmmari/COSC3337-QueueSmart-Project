@@ -1,38 +1,41 @@
-// Notification module: stores in-app notifications (no real email or SMS).
-// The front end shows them in the bell panel and as pop-up toasts.
-const { data, newId } = require('../data/store');
+// Notification module: stores in-app notifications in the notifications table
+// (no real email or SMS). The front end shows them in the bell panel and as toasts.
+// In the database, status 'sent' means unread and 'viewed' means read.
+const { db, newId } = require('../data/store');
 
 const ALMOST_READY = 2; // positions 1 and 2 count as "almost ready" (from A1)
+
+// Database row -> the shape the front end already uses.
+function toNotification(row) {
+  return { id: row.notification_id, userId: row.user_id, type: row.type, text: row.message, time: row.created_at, read: row.status === 'viewed' };
+}
+
+const insert = db.prepare(`INSERT INTO notifications (notification_id, user_id, type, message, created_at, status)
+  VALUES (?, ?, ?, ?, ?, 'sent')`);
 
 function notify(userId, text, type = 'queue') {
   if (!userId) return null; // walk-in students without an account can't get notifications
   const notification = { id: newId('n'), userId, type, text, time: Date.now(), read: false };
-  data.notifications.unshift(notification);
+  insert.run(notification.id, userId, type, text, notification.time);
   return notification;
 }
 
+// Newest first. rowid breaks ties between notifications made in the same millisecond.
 function getNotifications(userId) {
-  return data.notifications
-    .filter((n) => n.userId === userId)
-    .sort((a, b) => b.time - a.time);
+  return db.prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC, rowid DESC')
+    .all(userId).map(toNotification);
 }
 
 function countUnread(userId) {
-  return getNotifications(userId).filter((n) => !n.read).length;
+  return db.prepare("SELECT COUNT(*) AS count FROM notifications WHERE user_id = ? AND status = 'sent'").get(userId).count;
 }
 
 function markAllRead(userId) {
-  let count = 0;
-  data.notifications.forEach((n) => {
-    if (n.userId === userId && !n.read) {
-      n.read = true;
-      count += 1;
-    }
-  });
-  return count;
+  return db.prepare("UPDATE notifications SET status = 'viewed' WHERE user_id = ? AND status = 'sent'").run(userId).changes;
 }
 
 // Called after a queue changes. Tells each student whose position moved.
+// Updates entry.lastPos; the queue module then saves it to the database.
 function notifyPositionChanges(serviceName, queue) {
   queue.forEach((entry, i) => {
     const position = i + 1;
@@ -51,4 +54,4 @@ function notifyPositionChanges(serviceName, queue) {
   });
 }
 
-module.exports = { ALMOST_READY, notify, getNotifications, countUnread, markAllRead, notifyPositionChanges };
+module.exports = { ALMOST_READY, toNotification, notify, getNotifications, countUnread, markAllRead, notifyPositionChanges };
