@@ -4,21 +4,64 @@
 //
 // Queue order (A1 rule): high priority first, then medium, then low.
 // Inside the same priority, whoever joined first goes first.
-const { data, newId, MINUTE } = require('../data/store');
+//
+// How the database fits in (A4): every queue_entries row with status 'waiting' has a
+// position (1, 2, 3, ...). A change works like this:
+//   1. loadQueue()  reads the waiting entries in position order into an array
+//   2. the same array logic we had in A3 changes the order (splice, sort, swap)
+//   3. saveQueue()  writes the new positions back
+// Each exported change runs inside one database transaction, so if anything fails
+// halfway (validation, a constraint), nothing is saved.
+const { db, data, newId, MINUTE, transaction } = require('../data/store');
 const ApiError = require('../utils/ApiError');
 const { validate } = require('../utils/validation');
-const { getService, PRIORITIES } = require('./services');
+const { getService, listServices, PRIORITIES } = require('./services');
 const { estimateWait } = require('./waitTime');
 const { notify, notifyPositionChanges, ALMOST_READY } = require('./notifications');
-const { addHistory } = require('./history');
+const { endEntry } = require('./history');
 
 const RANK = { high: 0, medium: 1, low: 2 };
 const AGING_INTERVAL_MS = MINUTE; // how often the server checks for long waits
+const CALLED_FOR_MS = 30 * MINUTE; // how long the "it's your turn" banner stays up
 
+// ---------- reading and writing queues ----------
+
+function toEntry(row) {
+  return {
+    id: row.entry_id,
+    name: row.display_name,
+    priority: row.priority,
+    joinedAt: row.join_time,
+    userId: row.user_id,
+    note: row.note,
+    lastPos: row.last_position,
+    aged: row.aged === 1
+  };
+}
+
+// The waiting students for a service, in line order. 404 if the service doesn't exist.
 function getQueue(serviceId) {
-  getService(serviceId); // throws 404 if the service doesn't exist
-  if (!data.queues[serviceId]) data.queues[serviceId] = [];
-  return data.queues[serviceId];
+  const { queueId } = getService(serviceId);
+  return db.prepare("SELECT * FROM queue_entries WHERE queue_id = ? AND status = 'waiting' ORDER BY position")
+    .all(queueId).map(toEntry);
+}
+
+const upsertEntry = db.prepare(`
+  INSERT INTO queue_entries (entry_id, queue_id, user_id, display_name, position, priority, join_time, status, note, last_position, aged)
+  VALUES (@id, @queueId, @userId, @name, @position, @priority, @joinedAt, 'waiting', @note, @lastPos, @aged)
+  ON CONFLICT(entry_id) DO UPDATE SET
+    position = excluded.position, priority = excluded.priority,
+    last_position = excluded.last_position, aged = excluded.aged`);
+
+// Saves the array order as positions 1..n. Entries that left the queue must be ended
+// (history.endEntry) before this runs. Positions are first moved out of the way
+// (+1,000,000) so the "one person per position" unique index never trips mid-update.
+function saveQueue(serviceId, queue) {
+  const { queueId } = getService(serviceId);
+  db.prepare("UPDATE queue_entries SET position = position + 1000000 WHERE queue_id = ? AND status = 'waiting'").run(queueId);
+  queue.forEach((entry, i) => {
+    upsertEntry.run({ ...entry, queueId, position: i + 1, lastPos: entry.lastPos ?? null, aged: entry.aged ? 1 : 0 });
+  });
 }
 
 function sortQueue(queue) {
@@ -42,9 +85,13 @@ function reposition(queue, entry) {
   queue.splice(i, 0, entry);
 }
 
-function updatePositions(serviceId) {
-  notifyPositionChanges(getService(serviceId).name, getQueue(serviceId));
+// Tells students whose place changed, then saves the new order.
+function updatePositions(serviceId, queue) {
+  notifyPositionChanges(getService(serviceId).name, queue);
+  saveQueue(serviceId, queue);
 }
+
+// ---------- looking at queues ----------
 
 // Advisors see the whole queue. Students only see their own name (A1 privacy rule).
 function viewQueue(serviceId, user) {
@@ -63,7 +110,6 @@ function previewJoin(serviceId) {
   return { serviceId, position, estimatedWait: estimateWait(service, position) };
 }
 
-// The queue this user is in right now, or null.
 // Read-only advisor search: keep each match's actual position in the queue.
 function searchQueue(serviceId, options = {}) {
   const query = options.query ?? '';
@@ -74,9 +120,10 @@ function searchQueue(serviceId, options = {}) {
   });
 
   const entries = getQueue(serviceId);
+  const emailOf = db.prepare('SELECT email FROM user_credentials WHERE user_id = ?');
   const term = query.trim().toLowerCase();
   const matches = entries.flatMap((entry, index) => {
-    const email = data.users.find((user) => user.id === entry.userId)?.email || '';
+    const email = (entry.userId && emailOf.get(entry.userId)?.email) || '';
     if (priority !== 'all' && entry.priority !== priority) return [];
     if (term && !`${entry.name} ${email}`.toLowerCase().includes(term)) return [];
     return [{
@@ -88,25 +135,25 @@ function searchQueue(serviceId, options = {}) {
   return { entries: matches, total: entries.length, matchCount: matches.length };
 }
 
+// The queue this user is in right now, or null.
 function findEntry(userId) {
-  for (const serviceId of Object.keys(data.queues)) {
-    const queue = data.queues[serviceId];
-    const index = queue.findIndex((e) => e.userId === userId);
-    if (index !== -1) {
-      const position = index + 1;
-      return {
-        serviceId,
-        entry: queue[index],
-        position,
-        total: queue.length,
-        estimatedWait: estimateWait(getService(serviceId), position)
-      };
-    }
-  }
-  return null;
+  const row = db.prepare(`SELECT e.*, q.service_id FROM queue_entries e JOIN queues q ON q.queue_id = e.queue_id
+    WHERE e.user_id = ? AND e.status = 'waiting'`).get(userId);
+  if (!row) return null;
+  const service = getService(row.service_id);
+  const { total } = db.prepare("SELECT COUNT(*) AS total FROM queue_entries WHERE queue_id = ? AND status = 'waiting'").get(row.queue_id);
+  return {
+    serviceId: row.service_id,
+    entry: toEntry(row),
+    position: row.position,
+    total,
+    estimatedWait: estimateWait(service, row.position)
+  };
 }
 
-function joinQueue(user, serviceId, body = {}) {
+// ---------- students ----------
+
+const joinQueue = transaction((user, serviceId, body = {}) => {
   validate(body, { note: { label: 'Note', type: 'string', maxLength: 200 } });
   const service = getService(serviceId);
   if (!service.open) throw new ApiError(409, 'That service is closed right now.');
@@ -120,11 +167,12 @@ function joinQueue(user, serviceId, body = {}) {
     joinedAt: Date.now(),
     userId: user.id,
     note: (body.note || '').trim(),
-    lastPos: null
+    lastPos: null,
+    aged: false
   };
   queue.splice(insertPosition(queue, entry.priority), 0, entry);
-  updatePositions(serviceId); // tells anyone who got pushed back
-  delete data.called[user.id];
+  updatePositions(serviceId, queue); // saves the new entry and tells anyone who got pushed back
+  db.prepare('DELETE FROM called_alerts WHERE user_id = ?').run(user.id);
 
   const position = queue.indexOf(entry) + 1;
   notify(user.id, `You joined the ${service.name} queue at position ${position}.`);
@@ -132,37 +180,39 @@ function joinQueue(user, serviceId, body = {}) {
     notify(user.id, `Almost ready: you are now #${position} in ${service.name}. Please stay close to the advising center.`, 'status');
   }
   return { serviceId, position, total: queue.length, estimatedWait: estimateWait(service, position) };
-}
+});
 
-function leaveQueue(userId) {
+const leaveQueue = transaction((userId) => {
   const found = findEntry(userId);
   if (!found) throw new ApiError(404, 'You are not in a queue.');
   const service = getService(found.serviceId);
   const queue = getQueue(found.serviceId);
   queue.splice(found.position - 1, 1);
-  addHistory(userId, service.name, found.entry.joinedAt, 'left queue');
+  endEntry(found.entry.id, 'left queue');
   notify(userId, `You left the ${service.name} queue.`);
-  updatePositions(found.serviceId);
+  updatePositions(found.serviceId, queue);
   return { left: true };
-}
+});
+
+// ---------- advisors ----------
 
 // Advisor calls the first student in line. Returns null if nobody is waiting.
-function serveNext(serviceId) {
+const serveNext = transaction((serviceId) => {
   const queue = getQueue(serviceId);
   if (queue.length === 0) return null;
   const service = getService(serviceId);
   const entry = queue.shift();
-  const wait = Math.round((Date.now() - entry.joinedAt) / MINUTE);
-  data.servedLog.unshift({ serviceId, wait, at: Date.now(), outcome: 'completed' });
+  endEntry(entry.id, 'completed');
 
   if (entry.userId) {
-    data.called[entry.userId] = { service: service.name, at: Date.now() };
-    addHistory(entry.userId, service.name, entry.joinedAt, 'completed');
+    db.prepare(`INSERT INTO called_alerts (user_id, service_name, called_at) VALUES (?, ?, ?)
+      ON CONFLICT(user_id) DO UPDATE SET service_name = excluded.service_name, called_at = excluded.called_at`)
+      .run(entry.userId, service.name, Date.now());
     notify(entry.userId, `It's your turn. Please go to the ${service.name} advisor now.`, 'status');
   }
-  updatePositions(serviceId);
+  updatePositions(serviceId, queue);
   return entry;
-}
+});
 
 function findIndex(queue, entryId) {
   const index = queue.findIndex((e) => e.id === entryId);
@@ -171,7 +221,7 @@ function findIndex(queue, entryId) {
 }
 
 // outcome: 'removed' (saved in history as canceled) or 'no-show'
-function removeEntry(serviceId, entryId, body = {}) {
+const removeEntry = transaction((serviceId, entryId, body = {}) => {
   const outcome = body.outcome || 'removed';
   validate({ outcome }, { outcome: { label: 'Outcome', type: 'string', oneOf: ['removed', 'no-show'] } });
   const service = getService(serviceId);
@@ -179,48 +229,42 @@ function removeEntry(serviceId, entryId, body = {}) {
   const [entry] = queue.splice(findIndex(queue, entryId), 1);
 
   if (outcome === 'no-show') {
-    data.servedLog.unshift({ serviceId, wait: 0, at: Date.now(), outcome: 'no-show' });
-    addHistory(entry.userId, service.name, entry.joinedAt, 'no-show');
+    endEntry(entry.id, 'no-show');
     notify(entry.userId, `You were marked as a no-show for ${service.name}. You can join again from Join a queue.`, 'status');
   } else {
-    addHistory(entry.userId, service.name, entry.joinedAt, 'canceled');
+    endEntry(entry.id, 'canceled');
     notify(entry.userId, `An advisor removed you from the ${service.name} queue.`, 'status');
   }
-  updatePositions(serviceId);
+  updatePositions(serviceId, queue);
   return { ...entry, outcome };
-}
+});
 
 // direction: -1 moves up one place, 1 moves down one place
-function moveEntry(serviceId, entryId, body = {}) {
+const moveEntry = transaction((serviceId, entryId, body = {}) => {
   validate(body, { direction: { label: 'Direction', required: true, type: 'integer', oneOf: [-1, 1] } });
   const queue = getQueue(serviceId);
   const from = findIndex(queue, entryId);
   const to = from + body.direction;
   if (to < 0 || to >= queue.length) throw new ApiError(400, 'That student can’t move any further.');
   [queue[from], queue[to]] = [queue[to], queue[from]];
-  updatePositions(serviceId);
+  updatePositions(serviceId, queue);
   return queue;
-}
+});
 
-function setPriority(serviceId, entryId, body = {}) {
+const setPriority = transaction((serviceId, entryId, body = {}) => {
   validate(body, { priority: { label: 'Priority', required: true, type: 'string', oneOf: PRIORITIES } });
   const queue = getQueue(serviceId);
   const entry = queue[findIndex(queue, entryId)];
   entry.priority = body.priority;
   reposition(queue, entry);
-  updatePositions(serviceId);
+  updatePositions(serviceId, queue);
   return queue;
-}
+});
 
-// Starvation prevention (from A1): increases priority for students waiting beyond threshold.
-// Returns the queue (for the advisor's manual /age-check route).
-function applyPriorityAging(serviceId) {
-  ageQueue(serviceId);
-  return getQueue(serviceId);
-}
+// ---------- priority aging (starvation prevention, from A1) ----------
 
 // Ages one queue. Returns how many students moved up a priority level.
-function ageQueue(serviceId) {
+const ageQueue = transaction((serviceId) => {
   const service = getService(serviceId);
   const queue = getQueue(serviceId);
   const now = Date.now();
@@ -243,15 +287,21 @@ function ageQueue(serviceId) {
 
   if (aged.length > 0) {
     aged.forEach((entry) => reposition(queue, entry));
-    updatePositions(serviceId);
+    updatePositions(serviceId, queue);
   }
   return aged.length;
+});
+
+// The advisor's manual /age-check route: ages one queue and returns it.
+function applyPriorityAging(serviceId) {
+  ageQueue(serviceId);
+  return getQueue(serviceId);
 }
 
 // Ages every queue, including closed services (students there keep their spot).
 // Bumps the data version when anything changed, so open browser tabs refresh.
 function ageAllQueues() {
-  const aged = data.services.reduce((sum, service) => sum + ageQueue(service.id), 0);
+  const aged = listServices().reduce((sum, service) => sum + ageQueue(service.id), 0);
   if (aged > 0) data.version += 1;
   return aged;
 }
@@ -264,19 +314,20 @@ function startPriorityAging(intervalMs = AGING_INTERVAL_MS) {
   return timer;
 }
 
-// "It's your turn" message for a student who was just served (shown for 30 minutes).
+// ---------- "it's your turn" banner ----------
+
 function getCalled(userId) {
-  const called = data.called[userId];
-  if (called && Date.now() - called.at < 30 * MINUTE) return called;
+  const row = db.prepare('SELECT * FROM called_alerts WHERE user_id = ?').get(userId);
+  if (row && Date.now() - row.called_at < CALLED_FOR_MS) return { service: row.service_name, at: row.called_at };
   return null;
 }
 
 function dismissCalled(userId) {
-  delete data.called[userId];
+  db.prepare('DELETE FROM called_alerts WHERE user_id = ?').run(userId);
 }
 
 module.exports = {
   sortQueue, insertPosition, reposition, viewQueue, searchQueue, previewJoin, findEntry, joinQueue, leaveQueue,
   serveNext, removeEntry, moveEntry, setPriority, applyPriorityAging, ageQueue, ageAllQueues, startPriorityAging,
-  AGING_INTERVAL_MS, getCalled, dismissCalled, getQueue
+  AGING_INTERVAL_MS, getCalled, dismissCalled, getQueue, saveQueue
 };
