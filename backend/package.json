@@ -1,12 +1,16 @@
 {
   "name": "queuesmart-backend",
   "version": "1.0.0",
-  "description": "QueueSmart back end for COSC 4353 Assignment 3 (Express REST API, in-memory data)",
+  "description": "QueueSmart back end for COSC 4353 (Express REST API + SQLite database)",
   "main": "src/server.js",
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "start": "node src/server.js",
     "test": "jest",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "db:reset": "node -e \"require('./src/data/store').resetData(); console.log('Database reset to the demo data.')\""
   },
   "dependencies": {
     "express": "^4.21.2"
