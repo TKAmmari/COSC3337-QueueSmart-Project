@@ -164,6 +164,8 @@ window.QS = window.QS || {};
     getHistory() { return get('/history').history; },
     getNotifications() { return get('/notifications').notifications; },
     markAllRead() { return withToast(() => change('POST', '/notifications/read-all')); },
+    deleteNotification(id) { return withToast(() => change('DELETE', `/notifications/${id}`)); },
+    clearNotifications() { return withToast(() => change('DELETE', '/notifications')); },
     stats() { return get('/stats').stats; }
   };
 })(window.QS);
