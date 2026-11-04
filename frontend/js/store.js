@@ -115,6 +115,7 @@ window.QS = window.QS || {};
     // The signed-in user's profile (A4: user_profile table).
     getProfile() { return get('/users/me/profile').profile; },
     saveProfile(profile) { return change('PUT', '/users/me/profile', profile).profile; },
+    changePassword(passwords) { return change('PUT', '/users/me/password', passwords); },
     getUser(id) {
       if (!id) return null; // walk-in students have no account
       try { return get(`/users/${id}`).user; } catch (err) { return null; }
