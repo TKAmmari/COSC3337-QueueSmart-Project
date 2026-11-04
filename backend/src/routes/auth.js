@@ -34,6 +34,10 @@ usersRouter.put('/me/profile', requireLogin, (req, res) => {
   res.json({ profile: auth.updateProfile(req.user.id, req.body) });
 });
 
+usersRouter.put('/me/password', requireLogin, (req, res) => {
+  res.json(auth.changePassword(req.user.id, req.body));
+});
+
 usersRouter.get('/:id', requireLogin, (req, res) => {
   if (req.user.role !== 'admin' && req.user.id !== req.params.id) {
     throw new ApiError(403, 'You can only view your own account.');

@@ -166,7 +166,45 @@ function updateProfile(userId, body = {}) {
   return getProfile(userId);
 }
 
+// Change password (A4: updates user_credentials table with a new scrypt hash)
+const changePassword = transaction((userId, body = {}) => {
+  validate(body, {
+    currentPassword: { label: 'Current password', required: true, type: 'string' },
+    newPassword: {
+      label: 'New password', required: true, type: 'string', minLength: 8, maxLength: 64,
+      pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+      patternMessage: 'New password needs an uppercase letter, a lowercase letter, and a number.'
+    },
+    confirmPassword: { label: 'Confirm password', required: true, type: 'string' }
+  });
+
+  if (body.newPassword !== body.confirmPassword) {
+    throw new ApiError(400, 'Confirm password must match the new password.', [
+      { field: 'confirmPassword', message: 'Confirm password must match the new password.' }
+    ]);
+  }
+
+  const user = db.prepare('SELECT password_hash FROM user_credentials WHERE user_id = ?').get(userId);
+  if (!user || !verifyPassword(body.currentPassword, user.password_hash)) {
+    throw new ApiError(401, 'Current password does not match.', [
+      { field: 'currentPassword', message: 'Current password does not match.' }
+    ]);
+  }
+
+  if (body.currentPassword === body.newPassword) {
+    throw new ApiError(400, 'New password must be different from current password.', [
+      { field: 'newPassword', message: 'New password must be different from current password.' }
+    ]);
+  }
+
+  const newHash = hashPassword(body.newPassword);
+  db.prepare('UPDATE user_credentials SET password_hash = ? WHERE user_id = ?').run(newHash, userId);
+  notify(userId, 'Your account password was successfully updated.', 'info');
+
+  return { success: true, message: 'Password updated successfully.' };
+});
+
 module.exports = {
   ADVISOR_CODE, SESSION_HOURS, CONTACT_METHODS, publicUser, findUserByEmail, getUser,
-  register, login, logout, getUserByToken, getProfile, updateProfile
+  register, login, logout, getUserByToken, getProfile, updateProfile, changePassword
 };
