@@ -76,6 +76,67 @@ describe('data persists in the database file', () => {
   });
 });
 
+describe('upgrading a database file made before the missed status', () => {
+  const OLD_APPOINTMENTS = `
+    DROP INDEX ux_no_double_booking;
+    DROP INDEX ix_appointments_slot;
+    DROP TABLE appointments;
+    CREATE TABLE appointments (
+      appointment_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES user_credentials(user_id) ON DELETE CASCADE,
+      service_id TEXT NOT NULL REFERENCES services(service_id),
+      start_at INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'canceled', 'checked-in')),
+      created_at INTEGER NOT NULL
+    );
+    CREATE UNIQUE INDEX ux_no_double_booking ON appointments(user_id, start_at) WHERE status = 'scheduled';`;
+
+  function oldDatabaseFile(dir) {
+    const file = path.join(dir, 'old.db');
+    const old = openDatabase(file);
+    old.exec(OLD_APPOINTMENTS);
+    old.prepare("INSERT INTO user_credentials VALUES ('u9', 'kept@uh.edu', ?, 'student', 1)").run('b'.repeat(64));
+    old.exec(`INSERT INTO services (service_id, name, description, expected_duration, priority_level, created_at)
+      VALUES ('s9', 'Kept', 'A description', 10, 'low', 1)`);
+    old.exec("INSERT INTO appointments VALUES ('a9', 'u9', 's9', 5000, 'scheduled', 1)");
+    return { file, old };
+  }
+
+  test('the old rows are kept and the missed status works', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'queuesmart-'));
+    const { file, old } = oldDatabaseFile(dir);
+    expect(() => old.exec("UPDATE appointments SET status = 'missed'")).toThrow('CHECK constraint failed');
+    old.close();
+
+    const upgraded = openDatabase(file);
+    expect(upgraded.prepare('SELECT appointment_id, status FROM appointments').all())
+      .toEqual([expect.objectContaining({ appointment_id: 'a9', status: 'scheduled' })]);
+    upgraded.exec("UPDATE appointments SET status = 'missed' WHERE appointment_id = 'a9'");
+    expect(upgraded.prepare("SELECT name FROM sqlite_master WHERE name = 'appointments_old'").get()).toBeUndefined();
+    expect(() => upgraded.exec("INSERT INTO appointments VALUES ('a10', 'u9', 's9', 6000, 'lost', 1)")).toThrow('CHECK constraint failed');
+    upgraded.close();
+
+    const again = openDatabase(file); // a later start has nothing left to upgrade
+    expect(again.prepare('SELECT status FROM appointments').get().status).toBe('missed');
+    again.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('a failed upgrade leaves the old table as it was', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'queuesmart-'));
+    const { file, old } = oldDatabaseFile(dir);
+    old.exec('CREATE TABLE appointments_old (id TEXT)'); // the rename can't succeed now
+    old.close();
+    expect(() => openDatabase(file)).toThrow();
+
+    const { DatabaseSync } = require('node:sqlite');
+    const unchanged = new DatabaseSync(file);
+    expect(unchanged.prepare('SELECT appointment_id FROM appointments').all()).toHaveLength(1);
+    unchanged.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+});
+
 describe('validation rules in the schema', () => {
   test('email must be unique (ignoring upper/lower case)', () => {
     expect(() => insertUser('u9', 'STUDENT@uh.edu')).toThrow('UNIQUE constraint failed');
@@ -152,6 +213,12 @@ describe('validation rules in the schema', () => {
     add('a1');
     expect(() => add('a2')).toThrow('UNIQUE constraint failed');
     add('a3', 'canceled'); // a canceled one at the same time is fine
+  });
+
+  test('appointment status must be one of the allowed values', () => {
+    const add = (id, status) => db.prepare("INSERT INTO appointments VALUES (?, 'u1', 's1', 5000, ?, 1)").run(id, status);
+    add('a1', 'missed');
+    expect(() => add('a2', 'lost')).toThrow('CHECK constraint failed');
   });
 
   test('deleting a user also deletes their profile, sessions, and notifications', () => {
