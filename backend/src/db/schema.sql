@@ -103,12 +103,14 @@ CREATE TABLE IF NOT EXISTS appointments (
   user_id        TEXT    NOT NULL REFERENCES user_credentials(user_id) ON DELETE CASCADE,
   service_id     TEXT    NOT NULL REFERENCES services(service_id),
   start_at       INTEGER NOT NULL,
-  status         TEXT    NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'canceled', 'checked-in')),
+  status         TEXT    NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'canceled', 'checked-in', 'missed')),
   created_at     INTEGER NOT NULL
 );
 -- No double booking: one scheduled appointment per student per time slot.
 CREATE UNIQUE INDEX IF NOT EXISTS ux_no_double_booking
   ON appointments(user_id, start_at) WHERE status = 'scheduled';
+-- Used to count how many students already hold a time slot.
+CREATE INDEX IF NOT EXISTS ix_appointments_slot ON appointments(service_id, start_at);
 
 -- Login sessions (token from POST /api/auth/login, valid for 8 hours).
 CREATE TABLE IF NOT EXISTS sessions (

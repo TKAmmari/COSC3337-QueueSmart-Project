@@ -58,7 +58,7 @@ tests/                 Jest tests, one file per module + api.test.js for the HTT
 | `modules/waitTime.js` | Estimated wait = people ahead × session length ÷ advisors on duty. |
 | `modules/notifications.js` | Saves notifications: joined, almost ready (#1–#2), moved, served, removed. |
 | `modules/history.js` | Ends a queue visit with its outcome (completed, left queue, canceled, no-show) and lists a student's past visits. |
-| `modules/appointments.js` | Book, change, cancel, and check in for appointments. Check-in puts the student in that service's queue. |
+| `modules/appointments.js` | Book, change, cancel, and check in for appointments. Check-in puts the student in that service's queue. Appointments nobody checked in for are marked missed once their day is over. |
 | `modules/stats.js` | Advisor dashboard numbers for today: waiting, served, average/longest wait, no-show rate, per-service demand, appointment stats. |
 
 ## API routes
@@ -157,4 +157,4 @@ To look inside the file, open it with [DB Browser for SQLite](https://sqlitebrow
 | Advisors on duty | required, whole number 1–10 |
 | Priority | required: `low`, `medium`, or `high` |
 | Queue note | optional, max 200 |
-| Appointment | service, date (`YYYY-MM-DD`, a real date, not in the past), time (`HH:MM`, 9:00–4:30) required; no double booking (also when changing one); only scheduled appointments can be changed, canceled, or checked in; check-in only on the appointment day |
+| Appointment | service, date (`YYYY-MM-DD`, a real date, a weekday, not in the past), time (`HH:MM`, one of 9:00, 10:00, 11:00, 13:00, 14:00, 15:00, not already passed) required; no double booking (also when changing one); each service takes one appointment per advisor on duty in a time slot; only scheduled appointments can be changed, canceled, or checked in; check-in only on the appointment day |

@@ -40,7 +40,8 @@ function getStats() {
 
   const appts = db.prepare(`SELECT COUNT(*) AS total,
       COALESCE(SUM(status = 'canceled'), 0) AS canceled,
-      COALESCE(SUM(status = 'scheduled'), 0) AS scheduled
+      COALESCE(SUM(status = 'scheduled'), 0) AS scheduled,
+      COALESCE(SUM(status = 'missed'), 0) AS missed
     FROM appointments`).get();
 
   return {
@@ -54,6 +55,7 @@ function getStats() {
       total: appts.total,
       scheduled: appts.scheduled,
       canceled: appts.canceled,
+      missed: appts.missed,
       cancelRate: appts.total ? Math.round((appts.canceled / appts.total) * 100) : 0
     }
   };

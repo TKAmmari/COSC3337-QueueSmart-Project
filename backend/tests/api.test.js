@@ -191,6 +191,20 @@ describe('appointment and stats routes', () => {
     expect(canceled.body.appointment.status).toBe('canceled');
   });
 
+  test('booking rules come back as clear 400 and 409 errors', async () => {
+    const student = { Authorization: `Bearer ${studentToken}` };
+    const saturday = await request(app).post('/api/appointments').set(student).send({ serviceId: 's2', date: '2099-01-03', time: '13:00' });
+    expect(saturday.status).toBe(400);
+
+    await request(app).post('/api/appointments').set(student).send({ serviceId: 's2', date: '2099-01-05', time: '13:00' });
+    await request(app).post('/api/auth/register').send({ name: 'Ana Patel', email: 'ana@uh.edu', password: 'Secret123' });
+    const login = await request(app).post('/api/auth/login').send({ email: 'ana@uh.edu', password: 'Secret123' });
+    const full = await request(app).post('/api/appointments').set('Authorization', `Bearer ${login.body.token}`)
+      .send({ serviceId: 's2', date: '2099-01-05', time: '13:00' });
+    expect(full.status).toBe(409);
+    expect(full.body.error.message).toMatch('That time is full');
+  });
+
   test('advisor stats', async () => {
     const res = await request(app).get('/api/stats').set('Authorization', `Bearer ${advisorToken}`);
     expect(res.body.stats.waiting).toBe(11);

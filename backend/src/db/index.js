@@ -39,12 +39,44 @@ function databaseFile() {
   return process.env.NODE_ENV === 'test' ? ':memory:' : DEFAULT_FILE;
 }
 
+// Database files made before the 'missed' status keep the old CHECK rule, because
+// CREATE TABLE IF NOT EXISTS skips a table that's already there. SQLite can't change a
+// CHECK in place, so the old table is set aside here and its rows are copied back below.
+function setAsideOldAppointments(database) {
+  const table = database.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'appointments'").get();
+  if (!table || table.sql.includes("'missed'")) return false;
+  database.exec(`
+    DROP INDEX IF EXISTS ux_no_double_booking;
+    ALTER TABLE appointments RENAME TO appointments_old;
+  `);
+  return true;
+}
+
+function createTables(database) {
+  const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
+  database.exec('BEGIN');
+  try {
+    const upgrading = setAsideOldAppointments(database);
+    database.exec(schema);
+    if (upgrading) {
+      database.exec(`
+        INSERT INTO appointments SELECT * FROM appointments_old;
+        DROP TABLE appointments_old;
+      `);
+    }
+    database.exec('COMMIT');
+  } catch (err) {
+    database.exec('ROLLBACK');
+    throw err;
+  }
+}
+
 function openDatabase(file = databaseFile()) {
   if (file !== ':memory:') fs.mkdirSync(path.dirname(file), { recursive: true });
   const database = new DatabaseSync(file);
   database.exec('PRAGMA foreign_keys = ON'); // SQLite only enforces foreign keys when this is on
   if (file !== ':memory:') database.exec('PRAGMA journal_mode = WAL');
-  database.exec(fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8'));
+  createTables(database);
   return database;
 }
 

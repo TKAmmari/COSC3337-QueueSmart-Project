@@ -24,10 +24,13 @@
       const serviceName = svc ? svc.name : 'Advising Session';
 
       // Status pill styling
-      const isCanceled = apt.status === 'canceled';
-      const statusPill = isCanceled
-        ? `<span class="pill oc-canceled">Canceled</span>`
-        : `<span class="pill st-waiting">Scheduled</span>`;
+      const statusPills = {
+        scheduled: `<span class="pill st-waiting">Scheduled</span>`,
+        canceled: `<span class="pill oc-canceled">Canceled</span>`,
+        'checked-in': `<span class="pill st-served">Checked in</span>`,
+        missed: `<span class="pill oc-no-show">Missed</span>`
+      };
+      const statusPill = statusPills[apt.status];
 
       return `<tr>
         <td>
