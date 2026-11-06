@@ -117,14 +117,17 @@
       const date = new Date(appointment.startAt);
 
       // Status pill styling matching your styles.css
-      const isCanceled = appointment.status === 'canceled';
-      const statusPill = isCanceled 
-        ? `<span class="pill oc-canceled">Canceled</span>` 
-        : `<span class="pill st-waiting">Scheduled</span>`;
+      const statusPills = {
+        scheduled: `<span class="pill st-waiting">Scheduled</span>`,
+        canceled: `<span class="pill oc-canceled">Canceled</span>`,
+        'checked-in': `<span class="pill st-served">Checked in</span>`,
+        missed: `<span class="pill oc-no-show">Missed</span>`
+      };
+      const statusPill = statusPills[appointment.status];
 
       // Buttons only show if active
       let actionButtons = '';
-      if (!isCanceled) {
+      if (appointment.status === 'scheduled') {
         actionButtons = `
           <div class="btn-row" style="margin-top: 14px;">
             <button type="button" class="btn btn-sm btn-ghost btn-modify" data-id="${appointment.id}">Modify</button>
