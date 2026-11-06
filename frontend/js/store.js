@@ -150,6 +150,7 @@ window.QS = window.QS || {};
     projectedPosition(serviceId) { return get(`/queues/${serviceId}/projection`).position; },
     findEntry() { return get('/queues/me').current; },
     joinQueue(userId, serviceId, note) { return change('POST', `/queues/${serviceId}/join`, { note }).position; },
+    updateQueueNote(note) { return change('PATCH', '/queues/me/note', { note }); },
     leaveQueue() { return withToast(() => change('POST', '/queues/leave')); },
     serveNext(serviceId) { return withToast(() => change('POST', `/queues/${serviceId}/serve`).served); },
     removeEntry(serviceId, entryId, outcome) {
