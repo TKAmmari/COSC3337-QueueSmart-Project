@@ -12,28 +12,52 @@
   main.innerHTML = `
     <p class="lede">Your contact details and how you'd like to hear from the advising center. This is saved to your account, so it's the same on every device.</p>
     <div class="grid-2">
-      <section class="panel">
-        <div class="panel-head"><h2>Edit profile</h2></div>
-        <form id="profile-form">
-          <div class="field">
-            <div class="field-row"><label for="name">Full name<span class="req" aria-hidden="true">*</span></label><span class="counter" id="name-count"></span></div>
-            <input class="input" id="name" name="name" type="text" maxlength="60" autocomplete="name" data-counter="name-count" required>
-            <span class="hint">Advisors see this name in the queue.</span>
-          </div>
-          <div class="field">
-            <label for="phone">Phone (optional)</label>
-            <input class="input" id="phone" name="phone" type="tel" maxlength="20" autocomplete="tel" placeholder="713-555-0100">
-          </div>
-          <fieldset class="field">
-            <legend>Preferred contact method</legend>
-            <div class="segmented">
-              ${Object.entries(CONTACT).map(([value, label]) => `<label><input type="radio" name="contactMethod" value="${value}"><span>${label.replace(' notifications', '')}</span></label>`).join('')}
+      <div class="stack">
+        <section class="panel">
+          <div class="panel-head"><h2>Edit profile</h2></div>
+          <form id="profile-form">
+            <div class="field">
+              <div class="field-row"><label for="name">Full name<span class="req" aria-hidden="true">*</span></label><span class="counter" id="name-count"></span></div>
+              <input class="input" id="name" name="name" type="text" maxlength="60" autocomplete="name" data-counter="name-count" required>
+              <span class="hint">Advisors see this name in the queue.</span>
             </div>
-          </fieldset>
-          <div class="alert alert-error" id="profile-error" role="alert" hidden></div>
-          <div class="btn-row"><button class="btn btn-primary" type="submit">Save profile</button><button class="btn btn-ghost" type="button" data-reset>Undo changes</button></div>
-        </form>
-      </section>
+            <div class="field">
+              <label for="phone">Phone (optional)</label>
+              <input class="input" id="phone" name="phone" type="tel" maxlength="20" autocomplete="tel" placeholder="713-555-0100">
+            </div>
+            <fieldset class="field">
+              <legend>Preferred contact method</legend>
+              <div class="segmented">
+                ${Object.entries(CONTACT).map(([value, label]) => `<label><input type="radio" name="contactMethod" value="${value}"><span>${label.replace(' notifications', '')}</span></label>`).join('')}
+              </div>
+            </fieldset>
+            <div class="alert alert-error" id="profile-error" role="alert" hidden></div>
+            <div class="btn-row"><button class="btn btn-primary" type="submit">Save profile</button><button class="btn btn-ghost" type="button" data-reset>Undo changes</button></div>
+          </form>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><h2>Security & Password</h2></div>
+          <form id="password-form">
+            <div class="field">
+              <label for="currentPassword">Current password<span class="req" aria-hidden="true">*</span></label>
+              <input class="input" id="currentPassword" name="currentPassword" type="password" autocomplete="current-password" required>
+            </div>
+            <div class="field">
+              <label for="newPassword">New password<span class="req" aria-hidden="true">*</span></label>
+              <input class="input" id="newPassword" name="newPassword" type="password" autocomplete="new-password" maxlength="64" required>
+              <span class="hint">At least 8 characters with an uppercase letter, lowercase letter, and number.</span>
+            </div>
+            <div class="field">
+              <label for="confirmPassword">Confirm new password<span class="req" aria-hidden="true">*</span></label>
+              <input class="input" id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" maxlength="64" required>
+            </div>
+            <div class="alert alert-error" id="pwd-error" role="alert" hidden></div>
+            <button class="btn btn-ghost" type="submit">Update password</button>
+          </form>
+        </section>
+      </div>
+
       <aside class="panel summary" aria-labelledby="account-title">
         <div class="panel-head"><h2 id="account-title">Account</h2></div>
         <div id="account"></div>
@@ -81,4 +105,26 @@
 
   main.querySelector('[data-reset]').addEventListener('click', () => fill(QS.store.getProfile()));
   fill(QS.store.getProfile());
+
+  const pwdForm = main.querySelector('#password-form');
+  const pwdErr = main.querySelector('#pwd-error');
+  const pwdValidator = QS.validate.attach(pwdForm, {
+    currentPassword: [R.required('Current password')],
+    newPassword: [R.required('New password'), R.password()],
+    confirmPassword: [R.required('Confirm password'), R.matches('newPassword', 'Confirm password')]
+  }, data => {
+    pwdErr.hidden = true;
+    try {
+      QS.store.changePassword(data);
+      pwdForm.reset();
+      QS.ui.toast('Password updated successfully.', 'success');
+    } catch (e) {
+      if (e.details && e.details.length) {
+        e.details.forEach(d => pwdValidator.showError(d.field, d.message));
+      } else {
+        pwdErr.textContent = e.message;
+        pwdErr.hidden = false;
+      }
+    }
+  });
 })();

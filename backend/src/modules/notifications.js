@@ -2,6 +2,7 @@
 // (no real email or SMS). The front end shows them in the bell panel and as toasts.
 // In the database, status 'sent' means unread and 'viewed' means read.
 const { db, newId } = require('../data/store');
+const ApiError = require('../utils/ApiError');
 
 const ALMOST_READY = 2; // positions 1 and 2 count as "almost ready" (from A1)
 
@@ -34,6 +35,20 @@ function markAllRead(userId) {
   return db.prepare("UPDATE notifications SET status = 'viewed' WHERE user_id = ? AND status = 'sent'").run(userId).changes;
 }
 
+function deleteNotification(userId, notificationId) {
+  const info = db.prepare('DELETE FROM notifications WHERE notification_id = ? AND user_id = ?')
+    .run(notificationId, userId);
+  if (info.changes === 0) {
+    throw new ApiError(404, 'Notification not found.');
+  }
+  return { deleted: true };
+}
+
+function clearNotifications(userId) {
+  const info = db.prepare('DELETE FROM notifications WHERE user_id = ?').run(userId);
+  return { cleared: info.changes };
+}
+
 // Called after a queue changes. Tells each student whose position moved.
 // Updates entry.lastPos; the queue module then saves it to the database.
 function notifyPositionChanges(serviceName, queue) {
@@ -54,4 +69,14 @@ function notifyPositionChanges(serviceName, queue) {
   });
 }
 
-module.exports = { ALMOST_READY, toNotification, notify, getNotifications, countUnread, markAllRead, notifyPositionChanges };
+module.exports = {
+  ALMOST_READY,
+  toNotification,
+  notify,
+  getNotifications,
+  countUnread,
+  markAllRead,
+  notifyPositionChanges,
+  deleteNotification,
+  clearNotifications
+};

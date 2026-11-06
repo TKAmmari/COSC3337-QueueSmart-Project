@@ -110,3 +110,44 @@ describe('login and logout', () => {
     expect(db.prepare('SELECT * FROM sessions WHERE token = ?').get(token)).toBeUndefined();
   });
 });
+
+describe('changePassword database operations', () => {
+  test('successfully changes password in the database and allows login with new password', () => {
+    const result = auth.changePassword('u1', {
+      currentPassword: 'Student123!',
+      newPassword: 'NewPassword99!',
+      confirmPassword: 'NewPassword99!'
+    });
+    expect(result.success).toBe(true);
+
+    expect(() => auth.login({ email: 'student@uh.edu', password: 'Student123!' })).toThrow('don’t match');
+
+    const loginRes = auth.login({ email: 'student@uh.edu', password: 'NewPassword99!' });
+    expect(loginRes.token).toBeDefined();
+    expect(loginRes.user.id).toBe('u1');
+  });
+
+  test('rejects incorrect current password', () => {
+    expect(() => auth.changePassword('u1', {
+      currentPassword: 'WrongPassword1!',
+      newPassword: 'NewPassword99!',
+      confirmPassword: 'NewPassword99!'
+    })).toThrow('Current password does not match.');
+  });
+
+  test('rejects when new password matches old password', () => {
+    expect(() => auth.changePassword('u1', {
+      currentPassword: 'Student123!',
+      newPassword: 'Student123!',
+      confirmPassword: 'Student123!'
+    })).toThrow('New password must be different from current password.');
+  });
+
+  test('rejects mismatched confirm password', () => {
+    expect(() => auth.changePassword('u1', {
+      currentPassword: 'Student123!',
+      newPassword: 'NewPassword99!',
+      confirmPassword: 'DifferentPassword99!'
+    })).toThrow('Confirm password must match the new password.');
+  });
+});

@@ -29,6 +29,27 @@ describe('notifications', () => {
     expect(notifications.countUnread('u1')).toBe(0);
     expect(notifications.countUnread('u2')).toBe(1); // other users are not touched
   });
+
+  test('deletes a single notification from the database', () => {
+    const n = notifications.notify('u1', 'To be deleted');
+    expect(notifications.deleteNotification('u1', n.id)).toEqual({ deleted: true });
+    expect(notifications.getNotifications('u1').some((item) => item.id === n.id)).toBe(false);
+  });
+
+  test('cannot delete another user’s notification or nonexistent notification', () => {
+    const n = notifications.notify('u1', 'Private message');
+    expect(() => notifications.deleteNotification('u2', n.id)).toThrow('Notification not found.');
+    expect(() => notifications.deleteNotification('u1', 'fake-id')).toThrow('Notification not found.');
+  });
+
+  test('clears all notifications for a user without affecting other users', () => {
+    notifications.notify('u1', 'Msg 1');
+    notifications.notify('u1', 'Msg 2');
+    notifications.notify('u2', 'Keep this');
+    expect(notifications.clearNotifications('u1').cleared).toBeGreaterThanOrEqual(2);
+    expect(notifications.getNotifications('u1')).toHaveLength(0);
+    expect(notifications.getNotifications('u2').length).toBeGreaterThan(0);
+  });
 });
 
 describe('history', () => {

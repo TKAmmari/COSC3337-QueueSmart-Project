@@ -79,7 +79,13 @@ window.QS = window.QS || {};
             <div class="bell-wrap">
               <button class="bell" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="notif-panel">${icon('bell')}<span class="sr">Notifications</span><span class="badge" hidden></span></button>
               <section class="notif-panel" id="notif-panel" hidden aria-label="Notifications">
-                <header><h2>Notifications</h2><button type="button" class="link" data-readall>Mark all read</button></header>
+                <header>
+                  <h2>Notifications</h2>
+                  <div style="display:flex;gap:12px;align-items:center">
+                    <button type="button" class="link" data-readall>Mark read</button>
+                    <button type="button" class="link" data-clearall style="color:var(--muted)">Clear all</button>
+                  </div>
+                </header>
                 <ul class="notif-list"></ul>
               </section>
             </div>
@@ -98,6 +104,7 @@ window.QS = window.QS || {};
       document.addEventListener('click', ev => { if (!ev.target.closest('.bell-wrap')) { panel.hidden = true; bell.setAttribute('aria-expanded', 'false'); } });
       document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && !panel.hidden) { panel.hidden = true; bell.focus(); } });
       root.querySelector('[data-readall]').addEventListener('click', () => QS.store.markAllRead(user.id));
+      root.querySelector('[data-clearall]').addEventListener('click', () => QS.store.clearNotifications());
 
       QS.store.getNotifications(user.id).forEach(n => seen.add(n.id));
       this.renderNotifications();
@@ -110,8 +117,22 @@ window.QS = window.QS || {};
       const badge = document.querySelector('.bell .badge');
       badge.hidden = !unread; badge.textContent = unread;
       document.querySelector('.notif-list').innerHTML = list.length
-        ? list.slice(0, 12).map(n => `<li class="notif ${n.read ? '' : 'is-unread'} notif-${n.type}"><p>${esc(n.text)}</p><time>${ago(n.time)}</time></li>`).join('')
+        ? list.slice(0, 12).map(n => `
+            <li class="notif ${n.read ? '' : 'is-unread'} notif-${n.type}">
+              <div style="display:flex;justify-content:space-between;align-items:start;gap:8px">
+                <div><p>${esc(n.text)}</p><time>${ago(n.time)}</time></div>
+                <button type="button" class="link" data-delnotif="${n.id}" aria-label="Delete notification" style="color:var(--faint);font-size:16px;line-height:1;padding:0 4px;text-decoration:none">&times;</button>
+              </div>
+            </li>`).join('')
         : '<li class="empty-small">No notifications yet. Updates about your queue appear here.</li>';
+
+      document.querySelectorAll('[data-delnotif]').forEach(btn => {
+        btn.addEventListener('click', ev => {
+          ev.stopPropagation();
+          QS.store.deleteNotification(btn.dataset.delnotif);
+        });
+      });
+
       // New notifications that arrived since the last render become toasts.
       list.filter(n => !seen.has(n.id)).reverse().forEach(n => { seen.add(n.id); QS.ui.toast(n.text, n.type === 'status' ? 'status' : 'info'); });
     }

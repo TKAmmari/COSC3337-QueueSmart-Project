@@ -115,6 +115,7 @@ window.QS = window.QS || {};
     // The signed-in user's profile (A4: user_profile table).
     getProfile() { return get('/users/me/profile').profile; },
     saveProfile(profile) { return change('PUT', '/users/me/profile', profile).profile; },
+    changePassword(passwords) { return change('PUT', '/users/me/password', passwords); },
     getUser(id) {
       if (!id) return null; // walk-in students have no account
       try { return get(`/users/${id}`).user; } catch (err) { return null; }
@@ -149,6 +150,7 @@ window.QS = window.QS || {};
     projectedPosition(serviceId) { return get(`/queues/${serviceId}/projection`).position; },
     findEntry() { return get('/queues/me').current; },
     joinQueue(userId, serviceId, note) { return change('POST', `/queues/${serviceId}/join`, { note }).position; },
+    updateQueueNote(note) { return change('PATCH', '/queues/me/note', { note }); },
     leaveQueue() { return withToast(() => change('POST', '/queues/leave')); },
     serveNext(serviceId) { return withToast(() => change('POST', `/queues/${serviceId}/serve`).served); },
     removeEntry(serviceId, entryId, outcome) {
@@ -163,6 +165,8 @@ window.QS = window.QS || {};
     getHistory() { return get('/history').history; },
     getNotifications() { return get('/notifications').notifications; },
     markAllRead() { return withToast(() => change('POST', '/notifications/read-all')); },
+    deleteNotification(id) { return withToast(() => change('DELETE', `/notifications/${id}`)); },
+    clearNotifications() { return withToast(() => change('DELETE', '/notifications')); },
     stats() { return get('/stats').stats; }
   };
 })(window.QS);

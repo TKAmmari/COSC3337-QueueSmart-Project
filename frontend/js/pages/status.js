@@ -33,6 +33,21 @@
               <div class="panel-head"><h2>Line ahead of you</h2><span class="small muted">${found.position - 1} ${found.position - 1 === 1 ? 'student' : 'students'}</span></div>
               <div class="ahead">${ahead}</div>
               <p class="note" style="margin-top:16px">Names are hidden. Your position can move back if an advisor places a time-sensitive case ahead of you.</p>
+
+              <div style="margin-top:20px;border-top:1px solid var(--line);padding-top:16px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                  <strong style="font-size:14px">Your note for the advisor:</strong>
+                  <button type="button" class="link" id="btn-toggle-note">Edit note</button>
+                </div>
+                <p id="note-display" style="font-size:14px;color:var(--muted);font-style:${found.entry.note ? 'normal' : 'italic'}">${esc(found.entry.note || 'No note added.')}</p>
+                <form id="note-edit-form" hidden style="margin-top:10px">
+                  <textarea class="input" id="queue-note-input" maxlength="200" rows="2" placeholder="e.g. Need to resolve registration hold code H02">${esc(found.entry.note || '')}</textarea>
+                  <div class="btn-row" style="margin-top:8px">
+                    <button class="btn btn-primary btn-sm" type="submit">Save note</button>
+                    <button class="btn btn-ghost btn-sm" type="button" id="btn-cancel-note">Cancel</button>
+                  </div>
+                </form>
+              </div>
             </section>
             <section class="panel">
               <div class="panel-head"><h2>About your estimate</h2></div>
@@ -41,6 +56,37 @@
             </section>
           </div>
         </div>`;
+
+      const noteToggle = main.querySelector('#btn-toggle-note');
+      const noteForm = main.querySelector('#note-edit-form');
+      const noteDisplay = main.querySelector('#note-display');
+      const cancelNote = main.querySelector('#btn-cancel-note');
+      const noteInput = main.querySelector('#queue-note-input');
+
+      noteToggle.addEventListener('click', () => {
+        noteForm.hidden = false;
+        noteDisplay.hidden = true;
+        noteToggle.hidden = true;
+        noteInput.focus();
+      });
+
+      cancelNote.addEventListener('click', () => {
+        noteForm.hidden = true;
+        noteDisplay.hidden = false;
+        noteToggle.hidden = false;
+        noteInput.value = found.entry.note || '';
+      });
+
+      noteForm.addEventListener('submit', (ev) => {
+        ev.preventDefault();
+        try {
+          QS.store.updateQueueNote(noteInput.value);
+          QS.ui.toast('Advisor note updated.', 'success');
+        } catch (err) {
+          QS.ui.toast(err.message, 'error');
+        }
+      });
+
       main.querySelector('[data-leave]').addEventListener('click', async () => {
         if (await QS.ui.confirm({ title: 'Leave this queue?', body: 'You will lose your place in line. You can join again later, but you will start at the back.', action: 'Leave queue', danger: true })) QS.store.leaveQueue(user.id);
       });

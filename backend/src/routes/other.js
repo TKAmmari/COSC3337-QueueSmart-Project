@@ -17,6 +17,12 @@ notificationsRouter.get('/', (req, res) => {
 notificationsRouter.post('/read-all', (req, res) => {
   res.json({ updated: notifications.markAllRead(req.user.id) });
 });
+notificationsRouter.delete('/:id', (req, res) => {
+  res.json(notifications.deleteNotification(req.user.id, req.params.id));
+});
+notificationsRouter.delete('/', (req, res) => {
+  res.json(notifications.clearNotifications(req.user.id));
+});
 
 const historyRouter = express.Router();
 historyRouter.get('/', requireLogin, (req, res) => {

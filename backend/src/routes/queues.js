@@ -26,6 +26,10 @@ router.post('/leave', requireRole('student'), (req, res) => {
   res.json(queue.leaveQueue(req.user.id));
 });
 
+router.patch('/me/note', requireRole('student'), (req, res) => {
+  res.json(queue.updateNote(req.user.id, req.body));
+});
+
 // ----- looking at a queue -----
 router.get('/:serviceId', (req, res) => {
   res.json({ entries: queue.viewQueue(req.params.serviceId, req.user) });

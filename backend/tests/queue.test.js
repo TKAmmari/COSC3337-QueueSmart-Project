@@ -101,6 +101,19 @@ describe('students', () => {
     const advisorView = queue.viewQueue('s2', { role: 'admin' });
     expect(advisorView[0].name).toBe('Marcus Lee');
   });
+
+  test('student can update their note while waiting in queue', () => {
+    queue.joinQueue(student, 's1', { note: 'Original note' });
+    const res = queue.updateNote(student.id, { note: 'Updated hold explanation' });
+    expect(res.note).toBe('Updated hold explanation');
+    expect(queue.findEntry(student.id).entry.note).toBe('Updated hold explanation');
+  });
+
+  test('rejects note longer than 200 characters and students not in queue', () => {
+    expect(() => queue.updateNote(student.id, { note: 'Hello' })).toThrow('not in a queue');
+    queue.joinQueue(student, 's1');
+    expect(() => queue.updateNote(student.id, { note: 'x'.repeat(201) })).toThrow('200 characters or fewer');
+  });
 });
 
 describe('advisors', () => {
