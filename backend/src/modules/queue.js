@@ -182,6 +182,15 @@ const joinQueue = transaction((user, serviceId, body = {}) => {
   return { serviceId, position, total: queue.length, estimatedWait: estimateWait(service, position) };
 });
 
+const updateNote = transaction((userId, body = {}) => {
+  validate(body, { note: { label: 'Note', type: 'string', maxLength: 200 } });
+  const found = findEntry(userId);
+  if (!found) throw new ApiError(404, 'You are not in a queue.');
+  const note = (body.note || '').trim();
+  db.prepare("UPDATE queue_entries SET note = ? WHERE entry_id = ? AND status = 'waiting'").run(note, found.entry.id);
+  return { updated: true, note };
+});
+
 const leaveQueue = transaction((userId) => {
   const found = findEntry(userId);
   if (!found) throw new ApiError(404, 'You are not in a queue.');
@@ -327,7 +336,7 @@ function dismissCalled(userId) {
 }
 
 module.exports = {
-  sortQueue, insertPosition, reposition, viewQueue, searchQueue, previewJoin, findEntry, joinQueue, leaveQueue,
+  sortQueue, insertPosition, reposition, viewQueue, searchQueue, previewJoin, findEntry, joinQueue, updateNote, leaveQueue,
   serveNext, removeEntry, moveEntry, setPriority, applyPriorityAging, ageQueue, ageAllQueues, startPriorityAging,
   AGING_INTERVAL_MS, getCalled, dismissCalled, getQueue, saveQueue
 };
